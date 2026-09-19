@@ -1,0 +1,8 @@
+import os,tempfile,threading,json,urllib.request,sys,hashlib
+sys.path.insert(0,os.path.join(os.path.dirname(__file__),'..','app')); import server
+def req(b,p,m='GET',d=None,h=None):
+ q=urllib.request.Request(b+p,data=json.dumps(d).encode() if d is not None else None,method=m,headers={'Content-Type':'application/json',**(h or {})});
+ with urllib.request.urlopen(q,timeout=5) as r:return r.status,json.loads(r.read()),dict(r.headers)
+d=tempfile.TemporaryDirectory(); server.DB=os.path.join(d.name,'db.sqlite'); server.BACKUP_DIR=os.path.join(d.name,'backups'); server.ADMIN_PASSWORD='TEST-PASSWORD'; server.init(); s=server.ThreadingHTTPServer(('127.0.0.1',0),server.H); threading.Thread(target=s.serve_forever,daemon=True).start(); b=f'http://127.0.0.1:{s.server_port}'
+assert req(b,'/health')[1]['status']=='ok'; _,x,_=req(b,'/api/login','POST',{'email':server.ADMIN_EMAIL,'password':'TEST-PASSWORD'}); H={'Authorization':'Bearer '+x['token']}; _,x,_=req(b,'/api/calculate','POST',{'gross':100000000},H); assert (x['zakat'],x['mitra'],x['pusat'],x['amal'])==(2500000,39000000,39000000,19500000)
+_,a,_=req(b,'/api/cases','POST',{'gross':100000000},{**H,'Idempotency-Key':'GOLDEN-001'}); _,z,_=req(b,'/api/cases','POST',{'gross':100000000},{**H,'Idempotency-Key':'GOLDEN-001'}); assert a['case_id']==z['case_id']; _,r,_=req(b,'/api/reconciliation','POST',{'case_id':a['case_id'],'expected':100,'executed':100,'received':100,'ledger':100},H); assert r['status']=='RECONCILED'; _,r,_=req(b,'/api/backups/create','POST',{},H); assert os.path.exists(r['path']) and hashlib.sha256(open(r['path'],'rb').read()).hexdigest()==r['sha256']; assert req(b,'/api/system/readiness')[1]['real_money_enabled'] is False; s.shutdown(); d.cleanup(); print('VCMC-VP MASTER BUILD TEST: PASS')
