@@ -1,0 +1,76 @@
+name: Install VCMC-VP MASTER BUILD Correctly
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  install-master-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract full MASTER BUILD
+        shell: bash
+        run: |
+          set -e
+
+          ZIP="VCMC_VP_MASTER_BUILD.zip"
+
+          test -f "$ZIP" || {
+            echo "ERROR: $ZIP tidak ditemukan."
+            exit 1
+          }
+
+          rm -rf .master-build
+          mkdir -p .master-build
+
+          unzip -q "$ZIP" -d .master-build
+
+          echo "=== ISI MASTER BUILD ==="
+          find .master-build -type f -print
+
+          ROOT=$(find .master-build -type f -name "server.py" -printf '%h\n' | head -1)
+
+          test -n "$ROOT" || {
+            echo "ERROR: server.py tidak ditemukan."
+            exit 1
+          }
+
+          echo "MASTER BUILD ROOT: $ROOT"
+
+          cp -a "$ROOT"/. .
+
+          echo "=== HASIL INSTALL ==="
+          find . -maxdepth 3 -type f \
+            ! -path "./.git/*" \
+            ! -path "./.master-build/*" \
+            -print
+
+          rm -f V4_VCMC_VP_MASTER_BUILD_LENGKAP.zip
+          rm -f V4_VCMC_VP_MASTER_BUILD_LENGKAP_COMPLETED.zip
+          rm -f VCMC_VP_MASTER_BUILD.zip
+
+          rm -rf .master-build
+
+      - name: Commit MASTER BUILD
+        shell: bash
+        run: |
+          set -e
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "Tidak ada perubahan."
+            exit 0
+          fi
+
+          git commit -m "Install full VCMC-VP MASTER BUILD"
+          git push
