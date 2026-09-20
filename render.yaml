@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: vcmc-vp
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+
+    envVars:
+      - key: VCMC_REAL_MONEY_ENABLED
+        value: "false"
+
+      - key: VCMC_ADMIN_EMAIL
+        value: "vcmcpusat@gmail.com"
+
+      - key: VCMC_ADMIN_PASSWORD
+        sync: false
