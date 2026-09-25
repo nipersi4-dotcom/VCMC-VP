@@ -24,3 +24,5 @@ jobs:
 
       - name: Run VCMC-VP roadmap test
         run: python test_roadmap_3_10.py
+
+      # Automatic push-trigger marker; no application code change.
