@@ -163,6 +163,32 @@ Pokok peringatan:
 - rollback harus tersedia;
 - DEPLOYED ≠ PROVEN.
 
+
+G. PASSWORD CLEAR AFTER LOGOUT — SECURITY BASELINE
+Status: FINAL / PROVEN / LOCKED
+
+Bukti terbaru:
+- Login berhasil.
+- Logout berhasil.
+- Setelah Logout, field password kosong dan tidak lagi terlihat pada Identity Gateway.
+- Email dapat tetap muncul karena autofill/pilihan pengguna/browser; password tidak dipulihkan oleh aplikasi.
+- Database tidak disentuh untuk perubahan UI ini.
+- Perubahan diuji langsung dari HP setelah deployment.
+
+Aturan yang dikunci:
+LOGOUT → SESSION BERAKHIR → PASSWORD FIELD KOSONG.
+
+Password adalah rahasia pengguna dan tidak boleh dipulihkan oleh aplikasi setelah Logout.
+
+Komponen yang dilindungi:
+- Login / Session / Identity baseline
+- Home baseline
+- Database / Audit baseline
+- Architecture V1
+
+Lock ID:
+VCMC-VP-FL-PASSWORD-CLEAR-1.0
+
 ============================================================
 6. ROADMAP TOTAL — #3 SAMPAI #10
 ============================================================
