@@ -1,0 +1,17 @@
+name: VCMC-VP Canonical Transfer
+on:
+  push:
+    paths:
+      - '.github/workflows/vcmc-canonical-transfer.yml'
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Package canonical server.py
+        run: cp server.py VCMC-VP_CANONICAL_server.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VCMC-VP-CANONICAL-server
+          path: VCMC-VP_CANONICAL_server.py
+          retention-days: 1
