@@ -12,6 +12,9 @@ with tempfile.TemporaryDirectory() as td:
   except urllib.error.HTTPError as e:
    return e.code,json.loads(e.read())
  assert req('/health')[1]['status']=='ok'
+ # Failure behavior: reject unauthenticated access and invalid credentials without issuing a session.
+ st,_=req('/api/evidence'); assert st==401
+ st,_=req('/api/login',{'email':'vcmcpusat@gmail.com','password':'INVALID-TEST-CREDENTIAL'}); assert st==401
  st,login=req('/api/login',{'email':'vcmcpusat@gmail.com','password':'TEST-PASSWORD'}); assert st==200; tok=login['token']
  st,me=req('/api/me',token=tok); assert st==200 and me['authenticated'] is True
  st,home=req('/api/home',token=tok); assert st==200 and 'metrics' in home
@@ -19,12 +22,15 @@ with tempfile.TemporaryDirectory() as td:
  _,c1=req('/api/cases',{'gross':100_000_000},tok,{'Idempotency-Key':'RM-001'}); _,c2=req('/api/cases',{'gross':999},tok,{'Idempotency-Key':'RM-001'}); assert c1==c2
  cid=c1['case_id']; _,a=req('/api/allocate',{'case_id':cid,'gross':100_000_000},tok); assert sum(x[1] for x in a['allocation'])==100_000_000
  _,s=req('/api/state',{'case_id':cid,'state':'UNKNOWN'},tok); assert s['state']=='UNKNOWN'; _,s=req('/api/state',{'case_id':cid,'state':'HOLD'},tok); assert s['state']=='HOLD'
+ st,invalid=req('/api/state',{'case_id':cid,'state':'NOT_A_VALID_STATE'},tok); assert st==400 and invalid['error']=='invalid_state'
  _,e=req('/api/evidence',{'case_id':cid,'kind':'GOLDEN','payload':{'gross':100_000_000}},tok); assert len(e['sha256'])==64
  _,pi=req('/api/payment-instructions',{'case_id':cid},tok); assert pi['executed'] is False and pi['status']=='HOLD_SIMULATION'
  _,rec=req('/api/reconciliation',{'case_id':cid,'expected':100,'executed':100,'received':100,'ledger':100},tok); assert rec['status']=='RECONCILED'
+ _,mismatch=req('/api/reconciliation',{'case_id':cid,'expected':100,'executed':90,'received':100,'ledger':100},tok); assert mismatch['status']=='EXCEPTION'
  _,b=req('/api/backups/create',{},tok); assert os.path.exists(b['path']) and hashlib.sha256(open(b['path'],'rb').read()).hexdigest()==b['sha256']
  # Persistence gate: restart the HTTP server against the same SQLite DB, then re-auth and verify durable records.
  srv.shutdown(); srv.server_close(); server.init(); srv=server.ThreadingHTTPServer(('127.0.0.1',0),server.H); threading.Thread(target=srv.serve_forever,daemon=True).start(); base=f'http://127.0.0.1:{srv.server_port}'
+ assert req('/health')[1]['status']=='ok'
  st,login2=req('/api/login',{'email':'vcmcpusat@gmail.com','password':'TEST-PASSWORD'}); assert st==200; tok2=login2['token']
  st,me2=req('/api/me',token=tok2); assert st==200 and me2['authenticated'] is True
  _,home2=req('/api/home',token=tok2); assert home2['metrics']['cases']>=1 and home2['metrics']['audit_events']>=1
