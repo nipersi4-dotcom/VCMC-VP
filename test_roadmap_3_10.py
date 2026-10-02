@@ -1,4 +1,4 @@
-import os,sys,tempfile,threading,json,urllib.request,urllib.error,hashlib,shutil
+import os,sys,tempfile,threading,json,urllib.request,urllib.error,hashlib,shutil,sqlite3
 ROOT=os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0,ROOT)
 with tempfile.TemporaryDirectory() as td:
@@ -28,6 +28,17 @@ with tempfile.TemporaryDirectory() as td:
  _,rec=req('/api/reconciliation',{'case_id':cid,'expected':100,'executed':100,'received':100,'ledger':100},tok); assert rec['status']=='RECONCILED'
  _,mismatch=req('/api/reconciliation',{'case_id':cid,'expected':100,'executed':90,'received':100,'ledger':100},tok); assert mismatch['status']=='EXCEPTION'
  _,b=req('/api/backups/create',{},tok); assert os.path.exists(b['path']) and hashlib.sha256(open(b['path'],'rb').read()).hexdigest()==b['sha256']
+ # Backup -> restore -> verify: prove the durable case/evidence survives database replacement.
+ with sqlite3.connect(b['path']) as bc:
+  assert bc.execute('SELECT 1 FROM cases WHERE id=?',(cid,)).fetchone()
+  assert bc.execute('SELECT 1 FROM evidence WHERE case_id=?',(cid,)).fetchone()
+ srv.shutdown(); srv.server_close()
+ shutil.copy2(b['path'],os.environ['VCMC_DB'])
+ server.init(); srv=server.ThreadingHTTPServer(('127.0.0.1',0),server.H); threading.Thread(target=srv.serve_forever,daemon=True).start(); base=f'http://127.0.0.1:{srv.server_port}'
+ st,login2=req('/api/login',{'email':'vcmcpusat@gmail.com','password':'TEST-PASSWORD'}); assert st==200; tok2=login2['token']
+ st,home2=req('/api/home',token=tok2); assert st==200 and home2['metrics']['cases']>=1 and home2['metrics']['evidence']>=1 and home2['metrics']['reconciliations']>=2
+ st,e2=req('/api/evidence',token=tok2); assert st==200 and e2['count']>=1
+ st,me2=req('/api/me',token=tok2); assert st==200 and me2['session_active'] is True
  _,ready=req('/api/system/readiness'); assert ready['real_money_enabled'] is False and ready['real_pjp_execution_verified'] is False
  _,lo=req('/api/logout',{},tok); assert lo['logged_out'] is True
  st,_=req('/api/me',token=tok); assert st==401
