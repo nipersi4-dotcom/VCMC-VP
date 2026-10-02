@@ -58,6 +58,15 @@ with tempfile.TemporaryDirectory() as td:
  server.REAL_MONEY=previous_real_money
  assert st==403 and blocked['error']=='real_money_execution_disabled_until_provider_verified'
  _,ready=req('/api/system/readiness'); assert ready['real_money_enabled'] is False and ready['real_pjp_execution_verified'] is False
+ # Pilot Readiness gate: machine may be READY only while real-money/PJP execution remains explicitly unverified.
+ st,readiness=req('/api/system/readiness'); assert st==200
+ assert readiness['ready'] is True
+ assert readiness['database'] is True
+ assert readiness['public'] is True
+ assert readiness['real_money'] is False
+ assert readiness['real_pjp_execution_verified'] is False
+ assert readiness['rule_id']=='VCMC-ALLOC-001'
+ assert readiness['rule_version']=='1.0.0'
  _,lo=req('/api/logout',{},tok); assert lo['logged_out'] is True
  st,_=req('/api/me',token=tok); assert st==401
  srv.shutdown()
