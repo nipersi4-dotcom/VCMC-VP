@@ -1,4 +1,4 @@
-import os,sys,tempfile,threading,json,urllib.request,hashlib,shutil
+import os,sys,tempfile,threading,json,urllib.request,urllib.error,hashlib,shutil
 ROOT=os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0,ROOT)
 with tempfile.TemporaryDirectory() as td:
@@ -7,7 +7,10 @@ with tempfile.TemporaryDirectory() as td:
  def req(path,obj=None,token=None,headers=None):
   h={'Content-Type':'application/json'}; h.update(headers or {});
   if token:h['Authorization']='Bearer '+token
-  r=urllib.request.urlopen(urllib.request.Request(base+path,data=json.dumps(obj).encode() if obj is not None else None,headers=h,method='POST' if obj is not None else 'GET')); return r.status,json.loads(r.read())
+  try:
+   r=urllib.request.urlopen(urllib.request.Request(base+path,data=json.dumps(obj).encode() if obj is not None else None,headers=h,method='POST' if obj is not None else 'GET')); return r.status,json.loads(r.read())
+  except urllib.error.HTTPError as e:
+   return e.code,json.loads(e.read())
  assert req('/health')[1]['status']=='ok'
  st,login=req('/api/login',{'email':'vcmcpusat@gmail.com','password':'TEST-PASSWORD'}); assert st==200; tok=login['token']
  st,me=req('/api/me',token=tok); assert st==200 and me['authenticated'] is True
