@@ -1,15 +1,15 @@
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parent
 required = [
-    ROOT/'app/server.py',
-    ROOT/'tests/test_master_build.py',
-    ROOT/'tests/test_roadmap_3_10.py',
+    ROOT/'server.py',
+    ROOT/'test_master_build.py',
+    ROOT/'test_roadmap_3_10.py',
     ROOT/'Dockerfile',
     ROOT/'render.yaml',
     ROOT/'requirements.txt',
-    ROOT/'docs/ROADMAP_10_ACCEPTANCE.md',
-    ROOT/'docs/VCMC_7_STAGE_COMPLETION_GATE.md',
+    ROOT/'ROADMAP_10_ACCEPTANCE.md',
+    ROOT/'VCMC_7_STAGE_COMPLETION_GATE.md',
 ]
 for p in required:
     assert p.is_file(), f'MISSING: {p}'
