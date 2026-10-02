@@ -12,6 +12,14 @@ with tempfile.TemporaryDirectory() as td:
   except urllib.error.HTTPError as e:
    return e.code,json.loads(e.read())
  assert req('/health')[1]['status']=='ok'
+ # Security/access gate: protected routes reject missing/invalid sessions and responses carry baseline security headers.
+ rr=urllib.request.urlopen(urllib.request.Request(base+'/health'))
+ assert rr.headers.get('X-Content-Type-Options')=='nosniff'
+ assert rr.headers.get('X-Frame-Options')=='DENY'
+ assert rr.headers.get('Cache-Control')=='no-store'
+ st,_=req('/api/home'); assert st==401
+ st,_=req('/api/activity'); assert st==401
+ st,_=req('/api/evidence',token='invalid-token'); assert st==401
  # Failure behavior: reject unauthenticated access and invalid credentials without issuing a session.
  st,_=req('/api/evidence'); assert st==401
  st,_=req('/api/login',{'email':'vcmcpusat@gmail.com','password':'INVALID-TEST-CREDENTIAL'}); assert st==401
@@ -44,6 +52,11 @@ with tempfile.TemporaryDirectory() as td:
   rs=[x[0] for x in vc.execute('SELECT status FROM reconciliations WHERE case_id=? ORDER BY id',(cid,)).fetchall()]; assert 'RECONCILED' in rs and 'EXCEPTION' in rs
  st,activity=req('/api/activity',token=tok2); assert st==200 and len(activity['items'])>=1
  st,me2=req('/api/me',token=tok2); assert st==200 and me2['session_active'] is True
+ # Even if the runtime flag is forced on, payment instruction must refuse execution.
+ previous_real_money=server.REAL_MONEY; server.REAL_MONEY=True
+ st,blocked=req('/api/payment-instructions',{'case_id':cid,'provider_id':'PJP-SIM-001'},tok2)
+ server.REAL_MONEY=previous_real_money
+ assert st==403 and blocked['error']=='real_money_execution_disabled_until_provider_verified'
  _,ready=req('/api/system/readiness'); assert ready['real_money_enabled'] is False and ready['real_pjp_execution_verified'] is False
  _,lo=req('/api/logout',{},tok); assert lo['logged_out'] is True
  st,_=req('/api/me',token=tok); assert st==401
