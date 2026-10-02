@@ -23,8 +23,16 @@ with tempfile.TemporaryDirectory() as td:
  _,pi=req('/api/payment-instructions',{'case_id':cid},tok); assert pi['executed'] is False and pi['status']=='HOLD_SIMULATION'
  _,rec=req('/api/reconciliation',{'case_id':cid,'expected':100,'executed':100,'received':100,'ledger':100},tok); assert rec['status']=='RECONCILED'
  _,b=req('/api/backups/create',{},tok); assert os.path.exists(b['path']) and hashlib.sha256(open(b['path'],'rb').read()).hexdigest()==b['sha256']
+ # Persistence gate: restart the HTTP server against the same SQLite DB, then re-auth and verify durable records.
+ srv.shutdown(); srv.server_close(); server.init(); srv=server.ThreadingHTTPServer(('127.0.0.1',0),server.H); threading.Thread(target=srv.serve_forever,daemon=True).start(); base=f'http://127.0.0.1:{srv.server_port}'
+ st,login2=req('/api/login',{'email':'vcmcpusat@gmail.com','password':'TEST-PASSWORD'}); assert st==200; tok2=login2['token']
+ st,me2=req('/api/me',token=tok2); assert st==200 and me2['authenticated'] is True
+ _,home2=req('/api/home',token=tok2); assert home2['metrics']['cases']>=1 and home2['metrics']['audit_events']>=1
+ _,e2=req('/api/evidence',{'case_id':cid,'kind':'PERSISTENCE_CHECK','payload':{'case_id':cid}},tok2); assert len(e2['sha256'])==64
+ _,rec2=req('/api/reconciliation',{'case_id':cid,'expected':100,'executed':100,'received':100,'ledger':100},tok2); assert rec2['status']=='RECONCILED'
+ assert os.path.exists(b['path']) and hashlib.sha256(open(b['path'],'rb').read()).hexdigest()==b['sha256']
  _,ready=req('/api/system/readiness'); assert ready['real_money_enabled'] is False and ready['real_pjp_execution_verified'] is False
- _,lo=req('/api/logout',{},tok); assert lo['logged_out'] is True
+ _,lo=req('/api/logout',{},tok2); assert lo['logged_out'] is True
  st,_=req('/api/me',token=tok); assert st==401
  srv.shutdown()
  print('VCMC-VP ROADMAP #3-#10 BUILD TEST: PASS')
