@@ -37,7 +37,12 @@ with tempfile.TemporaryDirectory() as td:
  server.init(); srv=server.ThreadingHTTPServer(('127.0.0.1',0),server.H); threading.Thread(target=srv.serve_forever,daemon=True).start(); base=f'http://127.0.0.1:{srv.server_port}'
  st,login2=req('/api/login',{'email':'vcmcpusat@gmail.com','password':'TEST-PASSWORD'}); assert st==200; tok2=login2['token']
  st,home2=req('/api/home',token=tok2); assert st==200 and home2['metrics']['cases']>=1 and home2['metrics']['evidence']>=1 and home2['metrics']['reconciliations']>=2
- st,e2=req('/api/evidence',token=tok2); assert st==200 and e2['count']>=1
+ st,e2=req('/api/evidence',token=tok2); assert st==200 and e2['count']>=1 and e2['unverified']==e2['count']
+ # Evidence + reconciliation final gate: verify recorded evidence/audit and both reconciliation outcomes.
+ with sqlite3.connect(os.environ['VCMC_DB']) as vc:
+  row=vc.execute('SELECT sha256 FROM evidence WHERE case_id=? ORDER BY id DESC LIMIT 1',(cid,)).fetchone(); assert row and len(row[0])==64
+  rs=[x[0] for x in vc.execute('SELECT status FROM reconciliations WHERE case_id=? ORDER BY id',(cid,)).fetchall()]; assert 'RECONCILED' in rs and 'EXCEPTION' in rs
+ st,activity=req('/api/activity',token=tok2); assert st==200 and len(activity['items'])>=1
  st,me2=req('/api/me',token=tok2); assert st==200 and me2['session_active'] is True
  _,ready=req('/api/system/readiness'); assert ready['real_money_enabled'] is False and ready['real_pjp_execution_verified'] is False
  _,lo=req('/api/logout',{},tok); assert lo['logged_out'] is True
