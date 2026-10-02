@@ -33,7 +33,7 @@ with tempfile.TemporaryDirectory() as td:
  assert req('/health')[1]['status']=='ok'
  st,login2=req('/api/login',{'email':'vcmcpusat@gmail.com','password':'TEST-PASSWORD'}); assert st==200; tok2=login2['token']
  st,me2=req('/api/me',token=tok2); assert st==200 and me2['authenticated'] is True
- _,home2=req('/api/home',token=tok2); assert home2['metrics']['cases']>=1 and home2['metrics']['audit_events']>=1
+ _,home2=req('/api/home',token=tok2); assert home2['metrics']['cases']>=1 and home2['metrics']['audit']>=1
  _,e2=req('/api/evidence',{'case_id':cid,'kind':'PERSISTENCE_CHECK','payload':{'case_id':cid}},tok2); assert len(e2['sha256'])==64
  _,rec2=req('/api/reconciliation',{'case_id':cid,'expected':100,'executed':100,'received':100,'ledger':100},tok2); assert rec2['status']=='RECONCILED'
  assert os.path.exists(b['path']) and hashlib.sha256(open(b['path'],'rb').read()).hexdigest()==b['sha256']
