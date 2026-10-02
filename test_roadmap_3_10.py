@@ -29,7 +29,7 @@ with tempfile.TemporaryDirectory() as td:
  _,mismatch=req('/api/reconciliation',{'case_id':cid,'expected':100,'executed':90,'received':100,'ledger':100},tok); assert mismatch['status']=='EXCEPTION'
  _,b=req('/api/backups/create',{},tok); assert os.path.exists(b['path']) and hashlib.sha256(open(b['path'],'rb').read()).hexdigest()==b['sha256']
  _,ready=req('/api/system/readiness'); assert ready['real_money_enabled'] is False and ready['real_pjp_execution_verified'] is False
- _,lo=req('/api/logout',{},tok2); assert lo['logged_out'] is True
+ _,lo=req('/api/logout',{},tok); assert lo['logged_out'] is True
  st,_=req('/api/me',token=tok); assert st==401
  srv.shutdown()
  print('VCMC-VP ROADMAP #3-#10 BUILD TEST: PASS')
