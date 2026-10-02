@@ -92,7 +92,7 @@ if(token)boot();
    b=html.encode(); self.send_response(200); self.send_header('Content-Type','text/html; charset=utf-8'); self.send_header('Content-Length',str(len(b))); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(b); return
   if p=='/health': return self.sendj(200,{'status':'ok','machine':'VCMC-VP','real_money_enabled':REAL_MONEY})
   if p=='/api/system/readiness':
-   c=conn(); provider=bool(c.execute('SELECT 1 FROM providers WHERE execution_verified=1').fetchone()); c.close(); return self.sendj(200,{'ready':not REAL_MONEY,'real_money_enabled':REAL_MONEY,'real_pjp_execution_verified':provider})
+   c=conn(); provider=bool(c.execute('SELECT 1 FROM providers WHERE execution_verified=1').fetchone()); c.close(); return self.sendj(200,{'ready':not REAL_MONEY,'database':True,'public':True,'real_money':REAL_MONEY,'real_money_enabled':REAL_MONEY,'real_pjp_execution_verified':provider,'rule_id':RULE_ID,'rule_version':RULE_VERSION,'formula_version':FORMULA_VERSION})
   if p=='/api/rule': return self.sendj(200,{'rule_id':RULE_ID,'version':RULE_VERSION,'formula_version':FORMULA_VERSION})
   if p=='/api/me':
    user=self.auth()
