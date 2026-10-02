@@ -1,0 +1,60 @@
+name: VCMC-VP Rollout Bridge Gate
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+  pull_request:
+    paths:
+      - "AGENTS.md"
+      - ".github/copilot-instructions.md"
+      - ".github/agents/**"
+      - ".github/rollout/**"
+      - ".github/workflows/vcmc-rollout-bridge-gate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  bridge-gate:
+    runs-on: ubuntu-latest
+    env:
+      VCMC_REAL_MONEY_ENABLED: "false"
+    steps:
+      - name: Checkout canonical branch
+        uses: actions/checkout@v6
+
+      - name: Verify handoff contract
+        run: |
+          test -f AGENTS.md
+          test -f .github/copilot-instructions.md
+          test -f .github/agents/vcmc-vp-engineering.agent.md
+          test -f .github/rollout/ROLLout_HANDOFF.md
+
+      - name: Compile canonical server
+        run: python3 -m py_compile server.py
+
+      - name: Verify money boundary
+        run: |
+          test "$VCMC_REAL_MONEY_ENABLED" = "false"
+          grep -q 'VCMC_REAL_MONEY_ENABLED' test_roadmap_3_10.py
+
+      - name: Emit bridge evidence
+        run: |
+          {
+            echo "bridge_gate: PASS"
+            echo "repository: nipersi4-dotcom/VCMC-VP"
+            echo "branch: $GITHUB_REF_NAME"
+            echo "head: $GITHUB_SHA"
+            echo "working_tree: clean-at-checkout"
+            echo "compile_check: PASS"
+            echo "real_money: false"
+            echo "rollout_agent_execution: external-handoff-required"
+          } | tee rollout-bridge-evidence.txt
+
+      - name: Upload bridge evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: vcmc-rollout-bridge-evidence
+          path: rollout-bridge-evidence.txt
+          retention-days: 7
