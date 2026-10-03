@@ -69,3 +69,10 @@ The first operational objective is:
 **GitHub current plan → Rollout agent reads it → Rollout executes against the existing VCMC-VP workspace → tests → evidence → GitHub PR/merge → Rollout deployment/release.**
 
 Keep the path moving forward and keep the repository history auditable.
+
+
+## Deployment trigger
+- Requested deployment source: current `main`.
+- Canonical `server.py` blob at request time: `1f2138a6761362d04460b6d902c73411d10d3ba1`.
+- Rollout must deploy the repository `main` state, not the stale local workspace copy.
+- Deployment remains simulation-only: `VCMC_REAL_MONEY_ENABLED=false`.
