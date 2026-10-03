@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#071b2b">
+<title>VCMC-VP — Universal Global Development Architecture</title>
+<style>
+:root{--bg:#06131e;--panel:#0d2533;--panel2:#102e3e;--line:rgba(255,255,255,.11);--text:#f5fbff;--muted:#9db3bf;--accent:#7ed6c1;--warn:#e9c46a}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:radial-gradient(circle at 15% 0%,#16465a 0,#071b2b 42%,#041018 100%);color:var(--text);min-height:100vh}
+button,input{font:inherit}main{max-width:980px;margin:auto;padding:18px 16px 96px}.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px}.brand{display:flex;gap:12px;align-items:center}.mark{width:44px;height:44px;border-radius:14px;background:linear-gradient(145deg,#9be7d5,#2b7182);display:grid;place-items:center;color:#06202a;font-weight:900}.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}h1,h2,h3,p{margin:0}.muted{color:var(--muted)}.card{background:linear-gradient(145deg,rgba(16,46,62,.94),rgba(7,25,36,.94));border:1px solid var(--line);border-radius:22px;padding:18px;margin:12px 0;box-shadow:0 14px 34px rgba(0,0,0,.18)}.hero{padding:22px}.pill{display:inline-block;padding:6px 9px;border-radius:999px;background:rgba(126,214,193,.12);color:var(--accent);font-size:12px}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.tile{padding:15px;border:1px solid var(--line);border-radius:17px;background:rgba(255,255,255,.035);min-height:84px}.tile b{display:block;margin-bottom:5px}.sectionhead{display:flex;justify-content:space-between;align-items:center;margin:22px 2px 8px}.sectionhead span{font-size:12px;color:var(--muted)}.rooms{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.room{padding:16px;border:1px solid var(--line);border-radius:18px;background:rgba(255,255,255,.035);cursor:pointer;transition:.15s}.room:hover{transform:translateY(-1px);border-color:rgba(126,214,193,.4)}.room small{color:var(--muted)}.feed{display:grid;gap:9px}.feeditem{padding:12px 14px;border-left:3px solid var(--accent);background:rgba(255,255,255,.035);border-radius:10px}.attention{border-left-color:var(--warn)}nav{position:fixed;z-index:10;bottom:0;left:0;right:0;background:rgba(4,16,24,.96);border-top:1px solid var(--line);padding:8px max(10px,calc((100vw - 980px)/2));display:grid;grid-template-columns:repeat(5,1fr);gap:4px}nav button{border:0;background:transparent;color:var(--muted);padding:8px 3px;font-size:11px}nav button.active{color:var(--accent)}.back{border:1px solid var(--line);background:transparent;color:var(--accent);padding:9px 12px;border-radius:11px}.primary{border:0;background:var(--accent);color:#05202a;padding:11px 15px;border-radius:11px;font-weight:800}.input{width:100%;padding:12px;border:1px solid var(--line);border-radius:11px;background:#061923;color:var(--text);margin:7px 0}.actions{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.action{border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--text);border-radius:16px;padding:14px;text-align:left}.hidden{display:none!important}
+@media(min-width:720px){.grid{grid-template-columns:repeat(4,1fr)}.rooms{grid-template-columns:repeat(3,1fr)}.actions{grid-template-columns:repeat(4,1fr)}}
+</style>
+</head>
+<body>
+<main>
+<header class="top">
+<div class="brand"><div class="mark">V</div><div><div class="eyebrow">Universal Global Development Architecture</div><h1>VCMC-VP</h1><div class="muted">Operational Platform · GitHub Pages Frontend</div></div></div>
+<span class="pill">FRONTEND ACTIVE</span>
+</header>
+<section id="content"></section>
+</main>
+<nav>
+<button data-tab="home" onclick="go('home')">⌂<br>Home</button>
+<button data-tab="architecture" onclick="go('architecture')">◈<br>Architecture</button>
+<button data-tab="rooms" onclick="go('rooms')">▦<br>Rooms</button>
+<button data-tab="evidence" onclick="go('evidence')">✓<br>Evidence</button>
+<button data-tab="system" onclick="go('system')">⚙<br>System</button>
+</nav>
+<script>
+const rooms=[
+['architecture','Architecture','Identity, foundation & governance','available'],
+['network','Global Network','Global / cross-border interaction','next stage'],
+['partners','Partners & Candidates','Screening, classification & registry','next stage'],
+['pilots','Pilots','Pilot lifecycle & proof window','next stage'],
+['projects','Programs & Projects','Real development execution layer','next stage'],
+['development','Development Direction','Need → direction → result','next stage'],
+['capital','Capital & Development','Capital boundary & development','next stage'],
+['distribution','Distribution','2.5% Zakat → 40/40/20','functional boundary'],
+['evidence','Evidence & Verification','Proof, hash, source & verification','functional boundary'],
+['reconciliation','Reconciliation','Expected → executed → received → ledger','functional boundary'],
+['security','Security','Identity, permission & security boundary','functional boundary'],
+['system','System & Operations','Readiness, metrics & controls','functional boundary'],
+['payment','Payment / Providers','Instruction layer; no real-money execution','simulation']
+];
+function esc(x){return String(x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function active(tab){document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x.dataset.tab===tab))}
+function go(tab){active(tab);({home:home,architecture:architecture,rooms:roomsView,evidence:evidence,system:system}[tab]||home)()}
+function home(){
+document.getElementById('content').innerHTML=
+'<section class="card hero"><div class="eyebrow">VCMC-VP · LIVE FRONTEND</div><h2 style="margin:6px 0 8px">Satu platform, banyak ruang kerja.</h2><p class="muted">Frontend aplikasi sekarang hidup di GitHub Pages. Backend VCMC-VP tetap terpisah di server.py dan dapat disambungkan tanpa membangun ulang arsitektur.</p></section>'+
+'<div class="grid"><div class="tile"><b>Identity</b>Identity → Role → Authority → Permission</div><div class="tile"><b>Governance</b>Separation of authority</div><div class="tile"><b>Evidence</b>CLAIM ≠ EVIDENCE</div><div class="tile"><b>Reconciliation</b>Recorded ≠ Done ≠ Proven</div></div>'+
+'<section class="sectionhead"><h3>VCMC Rooms</h3><span>'+rooms.length+' ruang terdaftar</span></section><div class="rooms">'+rooms.map(r=>roomCard(r)).join('')+'</div>'+
+'<section class="sectionhead"><h3>Control Boundary</h3><span>Current</span></section><div class="feed"><div class="feeditem attention"><b>REAL MONEY</b><br><span class="muted">Frontend tidak mengeksekusi uang nyata. Payment room tetap simulation / instruction boundary.</span></div><div class="feeditem"><b>Proof</b><br><span class="muted">READY ≠ PROVEN · UNKNOWN ≠ FAILED · Candidate ≠ Pilot.</span></div></div>';
+}
+function roomCard(r){return '<div class="room" onclick="room(\''+r[0]+'\')"><b>'+esc(r[1])+'</b><br><small>'+esc(r[2])+'</small><br><span class="pill" style="margin-top:9px">'+esc(r[3])+'</span></div>'}
+function architecture(){
+document.getElementById('content').innerHTML='<section class="card hero"><div class="eyebrow">ARCHITECTURE V1</div><h2>VCMC Architecture</h2><p class="muted" style="margin-top:7px">TAQDA → VCMC → Real Development → Real Benefit → Global Scale</p></section><div class="rooms">'+
+[['foundation','Identity / Foundation','TAQDA · Vision · 4 Pillars'],['governance','Governance','Authority · boundaries · accountability'],['evidence','Evidence','Proof · verification · audit trail'],['reconciliation','Reconciliation','Amount · destination · result'],['network','Global Network','Global · cross-border · interaction'],['development','Development','Need → direction → result']].map(x=>'<div class="room" onclick="detail(\''+x[0]+'\',\''+x[1]+'\',\''+x[2]+'\')"><b>'+x[1]+'</b><br><small>'+x[2]+'</small></div>').join('')+'</div>';
+}
+function roomsView(){document.getElementById('content').innerHTML='<section class="card hero"><div class="eyebrow">ROOMS</div><h2>Operational Rooms</h2><p class="muted" style="margin-top:7px">Ruang yang sudah memiliki batas fungsi ditampilkan terpisah dari ruang yang masih next stage.</p></section><div class="rooms">'+rooms.map(r=>roomCard(r)).join('')+'</div>'}
+function evidence(){document.getElementById('content').innerHTML='<section class="card hero"><div class="eyebrow">EVIDENCE CENTER</div><h2>Evidence & Verification</h2><p class="muted" style="margin-top:7px">CLAIM → RECORDED → EVIDENCE SUBMITTED → VERIFIED → RECONCILED → PROVEN</p></section><div class="grid"><div class="tile"><b>Evidence ID</b>Traceable record</div><div class="tile"><b>Hash</b>Integrity reference</div><div class="tile"><b>Source</b>Responsible source</div><div class="tile"><b>Status</b>Verification required</div></div><div class="card detail"><div class="feeditem">Frontend ini tidak mengubah status proof. Ia hanya menampilkan boundary dan alur yang harus dibuktikan.</div></div>'}
+function system(){document.getElementById('content').innerHTML='<section class="card hero"><div class="eyebrow">SYSTEM</div><h2>System & Operations</h2><p class="muted" style="margin-top:7px">Frontend deployment layer · GitHub Pages</p></section><div class="grid"><div class="tile"><b>Frontend</b><span class="pill">ACTIVE</span></div><div class="tile"><b>Backend</b>server.py · separate runtime</div><div class="tile"><b>Database</b>SQLite · backend boundary</div><div class="tile"><b>Real money</b>DISABLED / controlled</div></div><div class="card"><h3>Two-part architecture</h3><div class="feed" style="margin-top:10px"><div class="feeditem"><b>Part 1 — Frontend</b><br><span class="muted">GitHub Pages: visible application UI, navigation, rooms, evidence/control presentation.</span></div><div class="feeditem"><b>Part 2 — Backend</b><br><span class="muted">VCMC-VP server.py: login, sessions, SQLite, APIs, calculation, allocation, evidence, reconciliation and payment boundary.</span></div></div></div>'}
+function room(id){
+if(id==='architecture')return architecture();
+const r=rooms.find(x=>x[0]===id);if(!r)return home();
+document.getElementById('content').innerHTML='<section class="card hero"><button class="back" onclick="roomsView()">← Back to Rooms</button><div class="eyebrow" style="margin-top:18px">VCMC ROOM</div><h2 style="margin:6px 0 8px">'+esc(r[1])+'</h2><p class="muted">'+esc(r[2])+'</p></section><div class="card"><div class="feeditem"><b>Boundary</b><br><span class="muted">'+esc(r[3])+'</span></div><div class="feeditem" style="margin-top:10px"><b>Evidence rule</b><br><span class="muted">This frontend does not claim operational proof merely because the screen exists.</span></div></div>'}
+function detail(id,title,sub){
+const copy={
+foundation:'Identity → Role → Authority → Permission · TAQDA → VCMC → Real Development → Real Benefit → Global Scale',
+governance:'MENENTUKAN ≠ MENGHITUNG ≠ MEMEGANG DANA ≠ MEMBAYAR ≠ MENERIMA',
+evidence:'CLAIM ≠ EVIDENCE · READY ≠ PROVEN · UNKNOWN ≠ FAILED',
+reconciliation:'Amount → Destination → Purpose → Responsible Party → Evidence → Result → Reconciliation',
+network:'Identify → Screen → Classify → Route → Authorize → Interact → Evidence → Reconcile',
+development:'Need → Direction → Priority → Program → Project → Pilot → Result → Real Benefit'
+};
+document.getElementById('content').innerHTML='<section class="card hero"><button class="back" onclick="architecture()">← Back to Architecture</button><div class="eyebrow" style="margin-top:18px">ARCHITECTURE DETAIL</div><h2 style="margin:6px 0 8px">'+esc(title)+'</h2><p class="muted">'+esc(sub)+'</p></section><div class="card detail"><div class="feeditem"><b>Core flow</b><br><span class="muted">'+esc(copy[id]||sub)+'</span></div></div>'}
+go('home');
+</script>
+</body>
+</html>
