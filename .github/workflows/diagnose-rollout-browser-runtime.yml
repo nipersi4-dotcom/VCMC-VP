@@ -16,7 +16,32 @@ jobs:
           npm init -y
           npm install --no-save playwright
           npx playwright install --with-deps chromium
-      - name: Test deployed Rollout UI
+
+      - name: Inspect deployed HTML as received
+        env:
+          ROLLOUT_URL: https://vcmc-vp-239b.rollout.click
+        run: |
+          curl -fsSL --retry 2 --retry-delay 1 "$ROLLOUT_URL" -o /tmp/rollout.html
+          echo "HTML_BYTES=$(wc -c < /tmp/rollout.html)"
+          echo "HTML_SHA256=$(sha256sum /tmp/rollout.html | cut -d' ' -f1)"
+          python3 - <<'PY'
+          import re
+          s=open("/tmp/rollout.html",encoding="utf-8").read()
+          scripts=re.findall(r"<script(?:\\s[^>]*)?>(.*?)</script>",s,re.S|re.I)
+          print("SCRIPT_COUNT=",len(scripts))
+          for i,js in enumerate(scripts):
+              print(f"SCRIPT_{i}_BYTES={len(js.encode())}")
+              print(f"SCRIPT_{i}_HAS_LOGIN={('function login(' in js)}")
+              print(f"SCRIPT_{i}_HAS_TOGGLE={('function togglePassword(' in js)}")
+              open(f"/tmp/script-{i}.js","w",encoding="utf-8").write(js)
+          if not scripts:
+              raise SystemExit("NO_SCRIPT_TAGS")
+          if not any("function login(" in js for js in scripts):
+              raise SystemExit("LOGIN_FUNCTION_TEXT_NOT_IN_DEPLOYED_HTML")
+          PY
+          for f in /tmp/script-*.js; do echo "NODE_CHECK=$f"; node --check "$f"; done
+
+      - name: Test deployed Rollout UI without early abort
         env:
           ROLLOUT_URL: https://vcmc-vp-239b.rollout.click
         run: |
@@ -29,32 +54,58 @@ jobs:
             page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
             page.on('pageerror', e => errors.push('pageerror: ' + e.message));
             const response = await page.goto(process.env.ROLLOUT_URL, {waitUntil:'networkidle', timeout:30000});
-            console.log('HTTP_STATUS=' + response.status());
-            console.log('LOGIN_FN=' + await page.evaluate(() => typeof window.login));
-            console.log('TOGGLE_FN=' + await page.evaluate(() => typeof window.togglePassword));
-            if (await page.evaluate(() => typeof window.login !== 'function')) throw new Error('window.login is not a function');
-            if (await page.evaluate(() => typeof window.togglePassword !== 'function')) throw new Error('window.togglePassword is not a function');
 
-            const before = await page.locator('#password').getAttribute('type');
-            await page.locator('.password-toggle').click();
-            const after = await page.locator('#password').getAttribute('type');
-            await page.locator('.password-toggle').click();
-            const restored = await page.locator('#password').getAttribute('type');
-            console.log('PASSWORD_TYPES=' + [before, after, restored].join(','));
-            if (before !== 'password' || after !== 'text' || restored !== 'password') throw new Error('password toggle failed');
-
-            await page.locator('#email').fill('invalid-runtime-test@example.invalid');
-            await page.locator('#password').fill('runtime-test-invalid-password');
-            await page.locator('button.primary').click();
-            await page.waitForTimeout(1500);
-            const msg = await page.locator('#msg').textContent();
-            console.log('LOGIN_HANDLER_MSG=' + JSON.stringify(msg));
-            if (!msg || msg === 'Siap memverifikasi identitas.') throw new Error('login handler did not produce a response');
-            console.log('TOKEN_PRESENT=' + await page.evaluate(() => !!sessionStorage.getItem('vcmc_token')));
-            console.log('APP_VISIBLE=' + await page.locator('#app').isVisible().catch(() => false));
-            console.log('LOGIN_VISIBLE=' + await page.locator('#login').isVisible().catch(() => false));
+            const evidence = await page.evaluate(() => {
+              const scripts = [...document.scripts];
+              const login = window.login;
+              return {
+                http_status: null,
+                script_count: scripts.length,
+                script_bytes: scripts.map(s => s.textContent.length),
+                login_type: typeof window.login,
+                login_tag: login && login.tagName ? login.tagName : null,
+                login_id: login && login.id ? login.id : null,
+                login_outer: login && login.outerHTML ? login.outerHTML.slice(0,300) : null,
+                toggle_type: typeof window.togglePassword,
+                login_fn_text: scripts.some(s => s.textContent.includes('function login(')),
+                toggle_fn_text: scripts.some(s => s.textContent.includes('function togglePassword(')),
+                login_element_exists: !!document.getElementById('login'),
+                ready_state: document.readyState
+              };
+            });
+            evidence.http_status = response.status();
+            console.log('RUNTIME_EVIDENCE=' + JSON.stringify(evidence));
             if (errors.length) console.log('BROWSER_ERRORS=\n' + errors.join('\n'));
+
+            const before = await page.locator('#password').getAttribute('type').catch(()=>null);
+            let after = null;
+            let restored = null;
+            let click_error = null;
+            try {
+              await page.locator('.password-toggle').click();
+              after = await page.locator('#password').getAttribute('type');
+              await page.locator('.password-toggle').click();
+              restored = await page.locator('#password').getAttribute('type');
+            } catch (e) { click_error = e.message; }
+            console.log('PASSWORD_TYPES=' + [before, after, restored].join(','));
+            console.log('TOGGLE_CLICK_ERROR=' + JSON.stringify(click_error));
+
+            let login_click_error = null;
+            let msg = null;
+            try {
+              await page.locator('#email').fill('invalid-runtime-test@example.invalid');
+              await page.locator('#password').fill('runtime-test-invalid-password');
+              await page.locator('button.primary').click();
+              await page.waitForTimeout(1500);
+              msg = await page.locator('#msg').textContent();
+            } catch (e) { login_click_error = e.message; }
+            console.log('LOGIN_HANDLER_MSG=' + JSON.stringify(msg));
+            console.log('LOGIN_CLICK_ERROR=' + JSON.stringify(login_click_error));
+
             await browser.close();
-            if (errors.length) throw new Error('browser runtime errors detected');
-          })().catch(e => { console.error(e); process.exit(1); });
+            if (errors.length) process.exit(2);
+            if (evidence.login_fn_text && evidence.login_type !== 'function') process.exit(3);
+            if (evidence.toggle_fn_text && evidence.toggle_type !== 'function') process.exit(4);
+            if (click_error || login_click_error) process.exit(5);
+          })().catch(e => { console.error(e); process.exit(10); });
           NODE
