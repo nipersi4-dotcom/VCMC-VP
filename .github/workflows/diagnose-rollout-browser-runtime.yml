@@ -11,13 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Install Playwright
         run: |
           npm init -y
           npm install --no-save playwright
           npx playwright install --with-deps chromium
-
       - name: Test deployed Rollout UI
         env:
           ROLLOUT_URL: https://vcmc-vp-239b.rollout.click
@@ -25,13 +23,12 @@ jobs:
           node <<'NODE'
           const { chromium } = require('playwright');
           (async () => {
-            const url = process.env.ROLLOUT_URL;
             const browser = await chromium.launch({headless:true});
             const page = await browser.newPage();
             const errors = [];
             page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
             page.on('pageerror', e => errors.push('pageerror: ' + e.message));
-            const response = await page.goto(url, {waitUntil:'networkidle', timeout:30000});
+            const response = await page.goto(process.env.ROLLOUT_URL, {waitUntil:'networkidle', timeout:30000});
             console.log('HTTP_STATUS=' + response.status());
             console.log('LOGIN_FN=' + await page.evaluate(() => typeof window.login));
             console.log('TOGGLE_FN=' + await page.evaluate(() => typeof window.togglePassword));
@@ -46,10 +43,13 @@ jobs:
             console.log('PASSWORD_TYPES=' + [before, after, restored].join(','));
             if (before !== 'password' || after !== 'text' || restored !== 'password') throw new Error('password toggle failed');
 
-            await page.locator('#email').fill('vcmcpusat@gmail.com');
-            await page.locator('#password').fill(process.env.VCMC_ADMIN_PASSWORD || '');
+            await page.locator('#email').fill('invalid-runtime-test@example.invalid');
+            await page.locator('#password').fill('runtime-test-invalid-password');
             await page.locator('button.primary').click();
             await page.waitForTimeout(1500);
+            const msg = await page.locator('#msg').textContent();
+            console.log('LOGIN_HANDLER_MSG=' + JSON.stringify(msg));
+            if (!msg || msg === 'Siap memverifikasi identitas.') throw new Error('login handler did not produce a response');
             console.log('TOKEN_PRESENT=' + await page.evaluate(() => !!sessionStorage.getItem('vcmc_token')));
             console.log('APP_VISIBLE=' + await page.locator('#app').isVisible().catch(() => false));
             console.log('LOGIN_VISIBLE=' + await page.locator('#login').isVisible().catch(() => false));
