@@ -1,0 +1,27 @@
+name: VCMC-VP frontend JS syntax diagnostic
+
+on:
+  push:
+    branches:
+      - "diagnose/frontend-js-20261004"
+
+jobs:
+  js-parse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract embedded JavaScript
+        run: |
+          python3 - <<'PY'
+          import re
+          s = open("server.py", encoding="utf-8").read()
+          m = re.search(r"html='''(.*?)'''", s, re.S)
+          if not m:
+              raise SystemExit("HTML template not found")
+          html = m.group(1)
+          js = html.split("<script>", 1)[1].split("</script>", 1)[0]
+          open("/tmp/vcmc-app.js", "w", encoding="utf-8").write(js)
+          print("JS_BYTES=", len(js.encode()))
+          PY
+      - name: Parse JavaScript
+        run: node --check /tmp/vcmc-app.js
