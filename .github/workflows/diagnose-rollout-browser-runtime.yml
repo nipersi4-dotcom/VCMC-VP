@@ -1,0 +1,60 @@
+name: VCMC-VP Rollout browser runtime diagnostic
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  browser-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Playwright
+        run: |
+          npm init -y
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Test deployed Rollout UI
+        env:
+          ROLLOUT_URL: https://vcmc-vp-239b.rollout.click
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          (async () => {
+            const url = process.env.ROLLOUT_URL;
+            const browser = await chromium.launch({headless:true});
+            const page = await browser.newPage();
+            const errors = [];
+            page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+            page.on('pageerror', e => errors.push('pageerror: ' + e.message));
+            const response = await page.goto(url, {waitUntil:'networkidle', timeout:30000});
+            console.log('HTTP_STATUS=' + response.status());
+            console.log('LOGIN_FN=' + await page.evaluate(() => typeof window.login));
+            console.log('TOGGLE_FN=' + await page.evaluate(() => typeof window.togglePassword));
+            if (await page.evaluate(() => typeof window.login !== 'function')) throw new Error('window.login is not a function');
+            if (await page.evaluate(() => typeof window.togglePassword !== 'function')) throw new Error('window.togglePassword is not a function');
+
+            const before = await page.locator('#password').getAttribute('type');
+            await page.locator('.password-toggle').click();
+            const after = await page.locator('#password').getAttribute('type');
+            await page.locator('.password-toggle').click();
+            const restored = await page.locator('#password').getAttribute('type');
+            console.log('PASSWORD_TYPES=' + [before, after, restored].join(','));
+            if (before !== 'password' || after !== 'text' || restored !== 'password') throw new Error('password toggle failed');
+
+            await page.locator('#email').fill('vcmcpusat@gmail.com');
+            await page.locator('#password').fill(process.env.VCMC_ADMIN_PASSWORD || '');
+            await page.locator('button.primary').click();
+            await page.waitForTimeout(1500);
+            console.log('TOKEN_PRESENT=' + await page.evaluate(() => !!sessionStorage.getItem('vcmc_token')));
+            console.log('APP_VISIBLE=' + await page.locator('#app').isVisible().catch(() => false));
+            console.log('LOGIN_VISIBLE=' + await page.locator('#login').isVisible().catch(() => false));
+            if (errors.length) console.log('BROWSER_ERRORS=\n' + errors.join('\n'));
+            await browser.close();
+            if (errors.length) throw new Error('browser runtime errors detected');
+          })().catch(e => { console.error(e); process.exit(1); });
+          NODE
