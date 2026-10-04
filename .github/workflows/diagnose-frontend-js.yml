@@ -1,9 +1,9 @@
 name: VCMC-VP frontend JS syntax diagnostic
 
 on:
-  push:
+  pull_request:
     branches:
-      - "diagnose/frontend-js-20261004"
+      - main
 
 jobs:
   js-parse:
