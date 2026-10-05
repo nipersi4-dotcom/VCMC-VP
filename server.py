@@ -172,6 +172,10 @@ if(token)boot();
    user=self.auth()
    if not user: return self.sendj(401,{'error':'unauthorized'})
    c=conn(); rows=[dict(x) for x in c.execute('SELECT id,case_id,status,expected,executed,received,ledger,created_at FROM reconciliations ORDER BY id DESC')]; c.close(); return self.sendj(200,{'items':rows,'count':len(rows)})
+  if p=='/api/backups':
+   user=self.auth()
+   if not user: return self.sendj(401,{'error':'unauthorized'})
+   c=conn(); rows=[dict(x) for x in c.execute('SELECT id,path,sha256,created_at FROM backups ORDER BY id DESC')]; c.close(); return self.sendj(200,{'items':rows,'count':len(rows)})
   if p=='/api/metrics':
    c=conn(); n=c.execute('SELECT COUNT(*) FROM cases').fetchone()[0]; a=c.execute('SELECT COUNT(*) FROM audit').fetchone()[0]; c.close(); return self.sendj(200,{'cases':n,'audit_events':a})
   if p=='/api/api': return self.sendj(200,{'version':'v1','routes':['/api/login','/api/cases','/api/calculate','/api/allocate','/api/state','/api/evidence','/api/payment-instructions','/api/backups/create','/api/reconciliation','/api/metrics','/api/me','/api/home','/api/network','/api/activity','/api/notifications','/api/system/readiness']})
@@ -247,10 +251,6 @@ if(token)boot();
    cid=data.get('case_id','').strip()
    if not cid: return self.sendj(400,{'error':'case_id_required'})
    vals=[int(data.get(k,0)) for k in ('expected','executed','received','ledger')]; status='RECONCILED' if len(set(vals))==1 else 'EXCEPTION'; c=conn(); c.execute('INSERT INTO reconciliations(case_id,status,expected,executed,received,ledger,created_at) VALUES(?,?,?,?,?,?,?)',(cid,status,*vals,now())); c.commit(); c.close(); audit(user['email'],'RECONCILE',cid,status); return self.sendj(200,{'case_id':cid,'status':status,'expected':vals[0],'executed':vals[1],'received':vals[2],'ledger':vals[3]})
-  if p=='/api/backups':
-   user=self.auth()
-   if not user: return self.sendj(401,{'error':'unauthorized'})
-   c=conn(); rows=[dict(x) for x in c.execute('SELECT id,path,sha256,created_at FROM backups ORDER BY id DESC')]; c.close(); return self.sendj(200,{'items':rows,'count':len(rows)})
   if p=='/api/backups/create':
    os.makedirs(BACKUP_DIR,exist_ok=True); target=os.path.join(BACKUP_DIR,'vcmp-'+str(int(time.time()))+'.db'); shutil.copy2(DB,target); h=hashlib.sha256(open(target,'rb').read()).hexdigest(); c=conn(); c.execute('INSERT INTO backups(path,sha256,created_at) VALUES(?,?,?)',(target,h,now())); c.commit(); c.close(); audit(user['email'],'BACKUP','SYSTEM',h); return self.sendj(200,{'path':target,'sha256':h})
   return self.sendj(404,{'error':'not_found'})
