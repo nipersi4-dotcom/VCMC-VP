@@ -168,6 +168,10 @@ if(token)boot();
    user=self.auth()
    if not user: return self.sendj(401,{'error':'unauthorized'})
    c=conn(); rows=[dict(x) for x in c.execute('SELECT id,case_id,kind,sha256,created_at FROM evidence ORDER BY id DESC')]; c.close(); count=len(rows); verified=0; return self.sendj(200,{'items':rows,'count':count,'verified':verified,'unverified':count-verified})
+  if p=='/api/reconciliation':
+   user=self.auth()
+   if not user: return self.sendj(401,{'error':'unauthorized'})
+   c=conn(); rows=[dict(x) for x in c.execute('SELECT id,case_id,status,expected,executed,received,ledger,created_at FROM reconciliations ORDER BY id DESC')]; c.close(); return self.sendj(200,{'items':rows,'count':len(rows)})
   if p=='/api/metrics':
    c=conn(); n=c.execute('SELECT COUNT(*) FROM cases').fetchone()[0]; a=c.execute('SELECT COUNT(*) FROM audit').fetchone()[0]; c.close(); return self.sendj(200,{'cases':n,'audit_events':a})
   if p=='/api/api': return self.sendj(200,{'version':'v1','routes':['/api/login','/api/cases','/api/calculate','/api/allocate','/api/state','/api/evidence','/api/payment-instructions','/api/backups/create','/api/reconciliation','/api/metrics','/api/me','/api/home','/api/network','/api/activity','/api/notifications','/api/system/readiness']})
@@ -239,8 +243,6 @@ if(token)boot();
    c=conn(); old=c.execute('SELECT response FROM idempotency WHERE key=?',(key,)).fetchone()
    if old: c.close(); return self.sendj(200,json.loads(old['response']))
    cid='CASE-'+secrets.token_hex(8); result={'case_id':cid,'request_id':key,'state':'CREATED'}; c.execute('INSERT INTO cases VALUES(?,?,?,?,?)',(cid,key,'CREATED',int(data.get('gross',0)),now())); c.execute('INSERT INTO idempotency VALUES(?,?,?)',(key,json.dumps(result),now())); c.commit(); c.close(); audit(user['email'],'CREATE_CASE','CASE',cid); return self.sendj(201,result)
-  if p=='/api/reconciliation':
-   c=conn(); rows=[dict(x) for x in c.execute('SELECT id,case_id,status,expected,executed,received,ledger,created_at FROM reconciliations ORDER BY id DESC')]; c.close(); return self.sendj(200,{'items':rows,'count':len(rows)})
   if p=='/api/reconciliation':
    cid=data.get('case_id','').strip()
    if not cid: return self.sendj(400,{'error':'case_id_required'})
