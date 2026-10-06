@@ -224,12 +224,8 @@ if(token)boot();
   else:
    try: data=self.body()
    except: return self.sendj(400,{'error':'invalid_json'})
-   if self.headers.get('Content-Type','').startswith('application/x-www-form-urlencoded'):
-    from urllib.parse import parse_qs
-    raw=self.rfile.read(int(self.headers.get('Content-Length','0'))).decode()
-    form=parse_qs(raw); email=form.get('email',[''])[0]; password=form.get('password',[''])[0]
-   else:
-    email=data.get('email',''); password=data.get('password','')
+  if p=='/api/login':
+   email=str(data.get('email','')).strip(); password=str(data.get('password','')) 
    hashed=hashlib.sha256(password.encode()).hexdigest()
    c=conn(); u=c.execute('SELECT * FROM users WHERE email=? AND password_hash=?',(email,hashed)).fetchone()
    if not u and email==ADMIN_EMAIL and password==ADMIN_PASSWORD:
