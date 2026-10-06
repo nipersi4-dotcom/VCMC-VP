@@ -215,7 +215,12 @@ if(token)boot();
   try: data=self.body()
   except: return self.sendj(400,{'error':'invalid_json'})
   if p=='/api/login':
-   email=data.get('email',''); password=data.get('password','')
+   if self.headers.get('Content-Type','').startswith('application/x-www-form-urlencoded'):
+    from urllib.parse import parse_qs
+    raw=self.rfile.read(int(self.headers.get('Content-Length','0'))).decode()
+    form=parse_qs(raw); email=form.get('email',[''])[0]; password=form.get('password',[''])[0]
+   else:
+    email=data.get('email',''); password=data.get('password','')
    hashed=hashlib.sha256(password.encode()).hexdigest()
    c=conn(); u=c.execute('SELECT * FROM users WHERE email=? AND password_hash=?',(email,hashed)).fetchone()
    if not u and email==ADMIN_EMAIL and password==ADMIN_PASSWORD:
@@ -226,7 +231,10 @@ if(token)boot();
      c.execute('INSERT INTO users(email,password_hash,role) VALUES(?,?,?)',(ADMIN_EMAIL,hashed,'SOVEREIGN')); c.commit()
      u=c.execute('SELECT * FROM users WHERE email=?',(email,)).fetchone()
    if not u: c.close(); return self.sendj(401,{'error':'unauthorized'})
-   tok=secrets.token_urlsafe(32); c.execute('INSERT INTO sessions VALUES(?,?,?)',(tok,u['id'],time.time()+86400)); c.commit(); c.close(); audit(u['email'],'LOGIN','USER',u['email']); return self.sendj(200,{'token':tok,'role':u['role']})
+   tok=secrets.token_urlsafe(32); c.execute('INSERT INTO sessions VALUES(?,?,?)',(tok,u['id'],time.time()+86400)); c.commit(); c.close(); audit(u['email'],'LOGIN','USER',u['email'])
+   if self.headers.get('Content-Type','').startswith('application/x-www-form-urlencoded'):
+    self.send_response(303); self.send_header('Set-Cookie','vcmc_token='+tok+'; Path=/; HttpOnly; SameSite=Lax'); self.send_header('Location','/'); self.end_headers(); return
+   return self.sendj(200,{'token':tok,'role':u['role']})
   if p=='/api/public/access-requests':
    name=str(data.get('name','')).strip(); org=str(data.get('organization','')).strip(); country=str(data.get('country','')).strip(); language=str(data.get('language','en')).strip().lower(); contact_type=str(data.get('contact_type','phone')).strip().lower(); contact_value=str(data.get('contact_value','')).strip(); message=str(data.get('message','')).strip(); request_type=str(data.get('request_type','open')).strip().lower()
    if not name: return self.sendj(400,{'error':'name_required'})
