@@ -160,7 +160,7 @@ async function room(id,name){
  if(id==='system'){const [r,m,b]=await Promise.all([api('/api/system/readiness'),api('/api/metrics'),api('/api/backups')]);shell('<div class="grid"><div class="tile"><b>Health</b>API reachable</div><div class="tile"><b>Cases</b>'+m.cases+'</div><div class="tile"><b>Audit events</b>'+m.audit_events+'</div><div class="tile"><b>Readiness</b>'+esc(r.ready?'READY (simulation boundary)':'HOLD')+'</div></div><div class="card"><h3>Backup</h3><p class="muted">Database backup is created with SHA-256 evidence.</p><button class="primary" onclick="createBackup()">Buat Backup</button><div id="backup-result" style="margin-top:12px"></div></div><div class="card"><h3>Backup Registry</h3><div class="feed">'+(b.items.length?b.items.map(x=>'<div class="feeditem"><b>'+esc(x.created_at)+'</b><br><span class="muted">'+esc(x.sha256)+'</span></div>').join(''):'<div class="empty">Belum ada backup tercatat.</div>')+'</div></div><div class="card detail"><b>Control principle</b><p class="muted">Recorded ≠ Done ≠ Proven.</p></div>');return;}
  const status=(home.rooms.find(x=>x.id===id)||{}).status||'registered';shell('<div class="card detail"><b>Status</b><p>'+esc(status)+'</p><br><b>Boundary</b><p class="muted">Room terdaftar dan identitasnya tersedia. Fungsi operasional belum dibuka pada tahap ini; tidak dianggap proven.</p></div>');
 }
-async function reviewAccess(id,status){try{const r=await api('/api/public/access-requests/review',{method:'POST',body:JSON.stringify({id:id,status:status})});const d=await r.json();if(!r.ok){alert(d.error||'Review gagal');return}await room('partners','Partners & Candidates')}catch(e){alert('Review gagal')}}
+async function reviewAccess(id,status){try{const d=await api('/api/public/access-requests/review',{method:'POST',body:JSON.stringify({id:id,status:status})});let msg='Status diperbarui: '+d.status;if(d.activation_code)msg+='\n\nKode aktivasi akun: '+d.activation_code+'\nBerlaku 7 hari. Berikan kode ini kepada pemilik email yang disetujui.';alert(msg);await room('partners','Partners & Candidates')}catch(e){alert('Review gagal: '+(e.message||'unknown_error'))}}
 async function registerPartner(){const out=document.getElementById('partner-result');try{const d=await api('/api/partners',{method:'POST',body:JSON.stringify({name:document.getElementById('partner-name').value,contact:document.getElementById('partner-contact').value,kind:document.getElementById('partner-kind').value,status:document.getElementById('partner-status').value})});out.textContent='Tercatat: '+d.id+' · '+d.status;const list=document.getElementById('partner-list');if(list.querySelector('.empty'))list.innerHTML='';list.insertAdjacentHTML('afterbegin','<div class="feeditem" style="margin:10px 0"><b>'+esc(d.name)+'</b><br><span class="muted">'+esc(d.kind)+' · '+esc(d.status)+(d.contact?' · '+esc(d.contact):'')+'</span></div>');document.getElementById('partner-name').value='';document.getElementById('partner-contact').value=''}catch(e){out.textContent='Pencatatan gagal: '+e.message}}
 async function registerPilot(){const out=document.getElementById('pilot-result');try{const d=await api('/api/pilots',{method:'POST',body:JSON.stringify({name:document.getElementById('pilot-name').value,partner_id:document.getElementById('pilot-partner').value,objective:document.getElementById('pilot-objective').value,status:document.getElementById('pilot-status').value})});out.textContent='Tercatat: '+d.id;await room('pilots','Pilots')}catch(e){out.textContent='Pencatatan gagal: '+e.message}}
 async function registerProject(){const out=document.getElementById('project-result');try{const d=await api('/api/projects',{method:'POST',body:JSON.stringify({name:document.getElementById('project-name').value,pilot_id:document.getElementById('project-pilot').value,kind:document.getElementById('project-kind').value,status:document.getElementById('project-status').value})});out.textContent='Tercatat: '+d.id;await room('projects','Programs & Projects')}catch(e){out.textContent='Pencatatan gagal: '+e.message}}
@@ -362,6 +362,16 @@ if(token)boot();
     c.execute('INSERT INTO users(email,password_hash,role) VALUES(?,?,?)',(email,hashed,external_role(row['status']))); uid=c.execute('SELECT id FROM users WHERE email=?',(email,)).fetchone()['id']
    c.execute('UPDATE access_activations SET used=1 WHERE code=?',(code,)); tok=secrets.token_urlsafe(32); c.execute('INSERT INTO sessions VALUES(?,?,?)',(tok,uid,time.time()+86400)); c.commit(); c.close(); audit(email,'ACTIVATE_ACCOUNT',rid,external_role(row['status']))
    self.send_response(200); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Cache-Control','no-store'); self.send_header('Set-Cookie','vcmc_token='+tok+'; Path=/; HttpOnly; SameSite=Lax'); body=json.dumps({'token':tok,'role':external_role(row['status']),'email':email}).encode(); self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body); return
+  if p=='/api/logout':
+   t=self.headers.get('Authorization','').replace('Bearer ','').strip()
+   if not t:
+    ck=self.headers.get('Cookie','')
+    for part in ck.split(';'):
+     if part.strip().startswith('vcmc_token='): t=part.strip().split('=',1)[1]; break
+   c=conn()
+   if t: c.execute('DELETE FROM sessions WHERE token=?',(t,)); c.commit()
+   c.close()
+   self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Set-Cookie','vcmc_token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); body=json.dumps({'logged_out':True}).encode(); self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body); return
   user=self.auth()
   if not user: return self.sendj(401,{'error':'unauthorized'})
   if p=='/api/partners':
@@ -393,14 +403,7 @@ if(token)boot();
    if amount<0: return self.sendj(400,{'error':'invalid_amount'})
    if status not in {'PLANNED','REVIEW','AUTHORIZED','HOLD','UNKNOWN'}: return self.sendj(400,{'error':'invalid_status'})
    cid='CAP-'+secrets.token_hex(6); stamp=now(); c=conn(); c.execute('INSERT INTO capital_plans VALUES(?,?,?,?,?,?,?)',(cid,name,purpose,status,amount,stamp,stamp)); c.commit(); c.close(); audit(user['email'],'REGISTER_CAPITAL_PLAN',cid,status); return self.sendj(201,{'id':cid,'name':name,'purpose':purpose,'status':status,'amount':amount,'created_at':stamp})
-  if p=='/api/logout':
-   t=self.headers.get('Authorization','').replace('Bearer ','').strip()
-   if not t:
-    ck=self.headers.get('Cookie','')
-    for part in ck.split(';'):
-     if part.strip().startswith('vcmc_token='): t=part.strip().split('=',1)[1]; break
-   c=conn(); c.execute('DELETE FROM sessions WHERE token=?',(t,)); c.commit(); c.close(); audit(user['email'],'LOGOUT','USER',user['email'])
-   self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Set-Cookie','vcmc_token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); body=json.dumps({'logged_out':True}).encode(); self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body); return
+
   if p=='/api/calculate': return self.sendj(200,calc(data.get('gross',0)))
   if p=='/api/allocate':
    g=int(data.get('gross',0)); x=calc(g); cid=data.get('case_id')
