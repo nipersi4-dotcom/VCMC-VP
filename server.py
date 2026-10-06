@@ -44,6 +44,43 @@ class H(BaseHTTPRequestHandler):
 <section id="app" class="hidden"><header class="top"><div class="brand"><div class="mark">V</div><div><div class="eyebrow">VCMC-VP</div><h1 id="title">Home</h1></div></div><button class="logout" onclick="logout()">Keluar</button></header><div id="content" class="screen"></div></section>
 </main><nav id="nav" class="hidden"><button data-tab="home" onclick="go('home')">⌂<br>Home</button><button data-tab="network" onclick="go(\\\'network\\\')">◉<br>Network</button><button data-tab="explore" onclick="go(\\\'explore\\\')">▦<br>Explore</button><button data-tab="evidence" onclick="go(\\\'evidence\\\')">✓<br>Evidence</button><button data-tab="profile" onclick="go(\\\'profile\\\')">◯<br>Profile</button></nav>
 <script>
+(function(){
+  function toggle(){
+    var p=document.getElementById('password'),e=document.getElementById('password-eye');
+    if(!p)return;
+    var show=p.type==='password';p.type=show?'text':'password';
+    if(e)e.innerHTML=show?'<path d="M3 3l18 18"></path><path d="M10.6 6.2A10.8 10.8 0 0 1 12 6c6.5 0 10 6 10 6a18 18 0 0 1-4 4.2M6.2 6.8C3.4 8.4 2 12 2 12s3.5 6 10 6c1.5 0 2.8-.3 4-.8"></path><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"></path>':'<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path><circle cx="12" cy="12" r="2.5"></circle>';
+  }
+  async function loginFallback(){
+    var m=document.getElementById('msg'),e=document.getElementById('email'),p=document.getElementById('password');
+    if(m)m.textContent='Memverifikasi identitas...';
+    try{
+      var r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:e?e.value:'',password:p?p.value:''})});
+      var d=await r.json();
+      if(!r.ok){if(m)m.textContent=d.error==='unauthorized'?'Email atau password tidak cocok.':'Login gagal.';return;}
+      try{sessionStorage.setItem('vcmc_token',d.token)}catch(_){}
+      var l=document.getElementById('login'),a=document.getElementById('app'),n=document.getElementById('nav');
+      if(l)l.classList.add('hidden');if(a)a.classList.remove('hidden');if(n)n.classList.remove('hidden');
+      if(window.boot) return window.boot();
+      var c=document.getElementById('content'),t=document.getElementById('title');
+      if(t)t.textContent='Home';
+      if(c)c.innerHTML='<div class="card hero"><h2>Selamat datang di VCMC-VP</h2><p class="muted">Session active · SOVEREIGN</p></div>';
+    }catch(_){if(m)m.textContent='Koneksi gagal.'}
+  }
+  window.__vcmcBootstrapLogin=loginFallback;
+  window.__vcmcBootstrapToggle=toggle;
+  document.addEventListener('click',function(ev){
+    var t=ev.target.closest && ev.target.closest('#password-toggle,#login-button');
+    if(!t)return;
+    if(t.id==='password-toggle'){ev.preventDefault();toggle();}
+    if(t.id==='login-button'){ev.preventDefault();loginFallback();}
+  },true);
+  document.addEventListener('submit',function(ev){
+    if(ev.target && ev.target.id==='login-form'){ev.preventDefault();loginFallback();}
+  },true);
+})();
+</script>
+<script>
 function showPublicLane(kind){const box=document.getElementById('public-lane');const invited=kind==='invited';box.innerHTML='<div class="card" style="margin:0"><div class="sectionhead"><h3>'+(invited?'Invited / Existing Partner':'Public / Independent')+'</h3><button type="button" class="back" data-public-close>Tutup</button></div><p class="muted" style="margin-bottom:10px">Registration ≠ Approval · Login ≠ Authority · Email ≠ Partner</p><input id="pub-name" class="input" placeholder="Nama / Name"><input id="pub-org" class="input" placeholder="Organisasi / Organization"><input id="pub-country" class="input" placeholder="Negara / Country"><select id="pub-language" class="input"><option value="id">Bahasa Indonesia</option><option value="en">English</option><option value="ar">العربية</option><option value="es">Español</option><option value="fr">Français</option></select><select id="pub-contact-type" class="input"><option value="phone">Phone / WhatsApp</option><option value="email">Email</option></select><input id="pub-contact" class="input" placeholder="Phone / WhatsApp / Email"><input id="pub-message" class="input" placeholder="Tujuan / opportunity / kebutuhan"><input id="pub-invite" class="input" placeholder="Invitation code (jika ada)" '+(invited?'':'style="display:none"')+'><button class="primary" onclick="submitPublicRequest(\''+kind+'\')">Ajukan Akses</button><div id="pub-result" style="margin-top:12px"></div></div>'}
 async function submitPublicRequest(kind){const out=document.getElementById('pub-result');const name=document.getElementById('pub-name').value.trim();const contact=document.getElementById('pub-contact').value.trim();if(!name||!contact){out.textContent='Nama dan satu kontak diperlukan.';return}out.textContent='Mencatat permintaan...';try{const r=await fetch('/api/public/access-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request_type:kind,name,organization:document.getElementById('pub-org').value.trim(),country:document.getElementById('pub-country').value.trim(),language:document.getElementById('pub-language').value,contact_type:document.getElementById('pub-contact-type').value,contact_value:contact,message:document.getElementById('pub-message').value.trim(),invitation_code:document.getElementById('pub-invite').value.trim()})});const d=await r.json();if(!r.ok){out.textContent='Permintaan belum dapat dicatat: '+(d.error||'unknown_error');return}out.innerHTML='<div class="feeditem"><b>REQUESTED</b><br>ID: '+esc(d.id)+'<br><span class="muted">VCMC akan melakukan screening. Akun dan authority belum diberikan.</span></div>'}catch(e){out.textContent='Koneksi gagal.'}}
 let token=null;try{token=sessionStorage.getItem('vcmc_token')}catch(e){token=null}let me=null;let home=null;
