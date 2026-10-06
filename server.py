@@ -239,7 +239,7 @@ if(token)boot();
   if p=='/api/me':
    user=self.auth()
    if not user: return self.sendj(401,{'error':'unauthorized'})
-   return self.sendj(200,{'authenticated':True,'id':user['id'],'email':user['email'],'role':user['role'],'session_active':True})
+   return self.sendj(200,{'authenticated':True,'id':user['id'],'name':user.get('name') or '','email':user['email'],'login_id':user.get('login_id') or '','role':user['role'],'session_active':True})
   if p=='/api/public/access-requests':
    user=self.auth()
    if not user: return self.sendj(401,{'error':'unauthorized'})
@@ -355,6 +355,10 @@ if(token)boot();
    user=self.auth()
    if not user: return self.sendj(401,{'error':'unauthorized'})
    auth=self.headers.get('Authorization','').strip(); current=auth[7:].strip() if auth.lower().startswith('bearer ') else ''
+   if not current:
+    ck=self.headers.get('Cookie','')
+    for part in ck.split(';'):
+     if part.strip().startswith('vcmc_token='): current=part.strip().split('=',1)[1]; break
    c=conn(); c.execute('DELETE FROM sessions WHERE user_id=? AND token<>?',(user['id'],current)); n=c.total_changes; c.commit(); c.close()
    audit(user['email'],'REVOKE_OTHER_SESSIONS','USER',user['email'])
    return self.sendj(200,{'ok':True,'revoked_sessions':n})
