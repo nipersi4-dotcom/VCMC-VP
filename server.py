@@ -424,7 +424,7 @@ if(token)boot();
     c.execute('UPDATE users SET password_hash=?,role=? WHERE id=?',(hashed,external_role(row['status']),existing['id'])); uid=existing['id']
    else:
     c.execute('INSERT INTO users(email,password_hash,role) VALUES(?,?,?)',(email,hashed,external_role(row['status']))); uid=c.execute('SELECT id FROM users WHERE email=?',(email,)).fetchone()['id']
-   c.execute('UPDATE access_activations SET used=1 WHERE code=?',(code,)); tok=secrets.token_urlsafe(32); c.execute('INSERT INTO sessions VALUES(?,?,?)',(tok,uid,time.time()+86400)); c.commit(); c.close(); audit(email,'ACTIVATE_ACCOUNT',rid,external_role(row['status']))
+   c.execute('UPDATE access_activations SET used=1 WHERE code=?',(code,)); tok=secrets.token_urlsafe(32); activation_context=external_role(row['status']); c.execute('INSERT INTO sessions(token,user_id,expires,context) VALUES(?,?,?,?)',(tok,uid,time.time()+86400,activation_context)); c.commit(); c.close(); audit(email,'ACTIVATE_ACCOUNT',rid,activation_context)
    self.send_response(200); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Cache-Control','no-store'); self.send_header('Set-Cookie','vcmc_token='+tok+'; Path=/; HttpOnly; SameSite=Lax'); body=json.dumps({'token':tok,'role':external_role(row['status']),'email':email}).encode(); self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body); return
   if p=='/api/logout':
    t=self.headers.get('Authorization','').replace('Bearer ','').strip()
