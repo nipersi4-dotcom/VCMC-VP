@@ -45,7 +45,7 @@ class H(BaseHTTPRequestHandler):
   auth=self.headers.get('Authorization','').strip()
   t=auth[7:].strip() if auth.lower().startswith('bearer ') else ''
   c=conn()
-  r=c.execute('SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.expires>?',(t,time.time())).fetchone() if t else None
+  r=c.execute('SELECT u.*,s.context AS session_context FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.expires>?',(t,time.time())).fetchone() if t else None
   if not r:
    ck=self.headers.get('Cookie','')
    for part in ck.split(';'):
@@ -240,7 +240,7 @@ if(token)boot();
   if p=='/api/me':
    user=self.auth()
    if not user: return self.sendj(401,{'error':'unauthorized'})
-   return self.sendj(200,{'authenticated':True,'id':user['id'],'name':user.get('name') or '','email':user['email'],'login_id':user.get('login_id') or '','role':user['role'],'session_active':True})
+   return self.sendj(200,{'authenticated':True,'id':user['id'],'name':user.get('name') or '','email':user['email'],'login_id':user.get('login_id') or '','role':user['role'],'context':user.get('session_context') or 'PUBLIC','session_active':True})
   if p=='/api/public/access-requests':
    user=self.auth()
    if not user: return self.sendj(401,{'error':'unauthorized'})
@@ -368,15 +368,16 @@ if(token)boot();
    audit(user['email'],'REVOKE_OTHER_SESSIONS','USER',user['email'])
    return self.sendj(200,{'ok':True,'revoked_sessions':n})
   if p=='/api/public/register':
-   email=str(data.get('email','')).strip().lower(); password=str(data.get('password','')); name=str(data.get('name','')).strip()
+   email=str(data.get('email','')).strip().lower(); password=str(data.get('password','')); name=str(data.get('name','')).strip(); context=str(data.get('context','CANDIDATE')).strip().upper()
+   if context not in {'INDIVIDUAL','PROFESSIONAL','ENTREPRENEUR','ORGANIZATION','CANDIDATE'}: return self.sendj(400,{'error':'invalid_registration_context'})
    if not name or not email or '@' not in email: return self.sendj(400,{'error':'name_and_valid_email_required'})
    if len(password)<8: return self.sendj(400,{'error':'password_min_8_chars'})
    hashed=hashlib.sha256(password.encode()).hexdigest(); c=conn()
    if c.execute('SELECT 1 FROM users WHERE email=?',(email,)).fetchone(): c.close(); return self.sendj(409,{'error':'account_exists'})
    login_id='CAND-'+secrets.token_hex(5).upper()
    c.execute('INSERT INTO users(email,login_id,password_hash,role) VALUES(?,?,?,?)',(email,login_id,hashed,'CANDIDATE',name)); uid=c.execute('SELECT id FROM users WHERE email=?',(email,)).fetchone()['id']
-   tok=secrets.token_urlsafe(32); c.execute('INSERT INTO sessions VALUES(?,?,?)',(tok,uid,time.time()+86400)); c.commit(); c.close(); audit(email,'SELF_REGISTER','USER','CANDIDATE')
-   self.send_response(200); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Cache-Control','no-store'); self.send_header('Set-Cookie','vcmc_token='+tok+'; Path=/; HttpOnly; SameSite=Lax'); body=json.dumps({'token':tok,'role':'CANDIDATE','email':email,'login_id':login_id,'name':name,'status':'CANDIDATE'}).encode(); self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body); return
+   tok=secrets.token_urlsafe(32); c.execute('INSERT INTO sessions(token,user_id,expires,context) VALUES(?,?,?,?)',(tok,uid,time.time()+86400,context)); c.commit(); c.close(); audit(email,'SELF_REGISTER','USER','CANDIDATE / '+context)
+   self.send_response(200); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Cache-Control','no-store'); self.send_header('Set-Cookie','vcmc_token='+tok+'; Path=/; HttpOnly; SameSite=Lax'); body=json.dumps({'token':tok,'role':'CANDIDATE','email':email,'login_id':login_id,'name':name,'status':'CANDIDATE','context':context}).encode(); self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body); return
   if p=='/api/public/access-requests/review':
    user=self.auth()
    if not user: return self.sendj(401,{'error':'unauthorized'})
