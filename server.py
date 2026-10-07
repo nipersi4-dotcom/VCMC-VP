@@ -398,8 +398,8 @@ if(token)boot();
    if context=='CANDIDATE' and u['role'] not in {'CANDIDATE','PARTNER'}: c.close(); return self.sendj(403,{'error':'candidate_context_requires_candidate_status'})
    tok=secrets.token_urlsafe(32); c.execute('INSERT INTO sessions(token,user_id,expires,context) VALUES(?,?,?,?)',(tok,u['id'],time.time()+86400,context)); c.commit(); c.close(); audit(u['email'],'LOGIN','USER',u['email']+' / '+context)
    if self.headers.get('Content-Type','').startswith('application/x-www-form-urlencoded'):
-    self.send_response(303); self.send_header('Set-Cookie','vcmc_token='+tok+'; Path=/; HttpOnly; SameSite=Lax'); self.send_header('Location','/'); self.end_headers(); return
-   self.send_response(200); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Cache-Control','no-store'); self.send_header('Set-Cookie','vcmc_token='+tok+'; Path=/; HttpOnly; SameSite=Lax'); body=json.dumps({'token':tok,'role':u['role'],'status':u['status'] if 'status' in u.keys() else ('CREATOR' if u['role']=='SOVEREIGN' else u['role']),'context':context}).encode(); self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body); return
+    self.send_response(303); self.send_header('Set-Cookie','vcmc_token='+tok+'; Path=/; HttpOnly; Secure; SameSite=Lax'); self.send_header('Location','/'); self.end_headers(); return
+   self.send_response(200); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Cache-Control','no-store'); self.send_header('Set-Cookie','vcmc_token='+tok+'; Path=/; HttpOnly; Secure; SameSite=Lax'); body=json.dumps({'token':tok,'role':u['role'],'status':u['status'] if 'status' in u.keys() else ('CREATOR' if u['role']=='SOVEREIGN' else u['role']),'context':context}).encode(); self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body); return
   if p=='/api/password/change':
    user=self.auth()
    if not user: return self.sendj(401,{'error':'unauthorized'})
@@ -444,7 +444,7 @@ if(token)boot();
    login_id='CAND-'+secrets.token_hex(5).upper()
    c.execute('INSERT INTO users(email,login_id,password_hash,role,status,name) VALUES(?,?,?,?,?,?)',(email,login_id,hashed,'PUBLIC','PUBLIC',name)); uid=c.execute('SELECT id FROM users WHERE email=?',(email,)).fetchone()['id']
    tok=secrets.token_urlsafe(32); c.execute('INSERT INTO sessions(token,user_id,expires,context) VALUES(?,?,?,?)',(tok,uid,time.time()+86400,context)); c.commit(); c.close(); audit(email,'SELF_REGISTER','USER','PUBLIC / '+context)
-   self.send_response(200); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Cache-Control','no-store'); self.send_header('Set-Cookie','vcmc_token='+tok+'; Path=/; HttpOnly; SameSite=Lax'); body=json.dumps({'token':tok,'role':'PUBLIC','status':'PUBLIC','email':email,'login_id':login_id,'name':name,'context':context}).encode(); self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body); return
+   self.send_response(200); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Cache-Control','no-store'); self.send_header('Set-Cookie','vcmc_token='+tok+'; Path=/; HttpOnly; Secure; SameSite=Lax'); body=json.dumps({'token':tok,'role':'PUBLIC','status':'PUBLIC','email':email,'login_id':login_id,'name':name,'context':context}).encode(); self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body); return
   if p=='/api/public/access-requests/review':
    user=self.auth()
    if not user: return self.sendj(401,{'error':'unauthorized'})
@@ -492,7 +492,7 @@ if(token)boot();
    else:
     c.execute('INSERT INTO users(email,password_hash,role,status) VALUES(?,?,?,?)',(email,hashed,external_role(row['status']),row['status'])); uid=c.execute('SELECT id FROM users WHERE email=?',(email,)).fetchone()['id']
    c.execute('UPDATE access_activations SET used=1 WHERE code=?',(code,)); tok=secrets.token_urlsafe(32); activation_context=external_role(row['status']); c.execute('INSERT INTO sessions(token,user_id,expires,context) VALUES(?,?,?,?)',(tok,uid,time.time()+86400,activation_context)); c.commit(); c.close(); audit(email,'ACTIVATE_ACCOUNT',rid,activation_context)
-   self.send_response(200); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Cache-Control','no-store'); self.send_header('Set-Cookie','vcmc_token='+tok+'; Path=/; HttpOnly; SameSite=Lax'); body=json.dumps({'token':tok,'role':external_role(row['status']),'email':email}).encode(); self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body); return
+   self.send_response(200); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Cache-Control','no-store'); self.send_header('Set-Cookie','vcmc_token='+tok+'; Path=/; HttpOnly; Secure; SameSite=Lax'); body=json.dumps({'token':tok,'role':external_role(row['status']),'email':email}).encode(); self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body); return
   if p=='/api/logout':
    t=self.headers.get('Authorization','').replace('Bearer ','').strip()
    if not t:
