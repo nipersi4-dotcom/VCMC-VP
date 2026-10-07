@@ -29,12 +29,14 @@ def init():
  except sqlite3.OperationalError: pass
  c.execute("UPDATE users SET status='CREATOR' WHERE role='SOVEREIGN' AND (status IS NULL OR status='PUBLIC')")
  c.execute("UPDATE users SET name='VCMC Sovereign' WHERE email=? AND (name IS NULL OR name='')",(ADMIN_EMAIL,))
-admin=c.execute('SELECT * FROM users WHERE email=?',(ADMIN_EMAIL,)).fetchone()
-if not admin: c.execute('INSERT INTO users(email,login_id,password_hash,role,status,name) VALUES(?,?,?,?,?,?)',(ADMIN_EMAIL,'SOVEREIGN',hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest(),'SOVEREIGN','CREATOR','VCMC Sovereign'))
-else:
- if not admin['login_id']: c.execute('UPDATE users SET login_id=? WHERE id=?',('SOVEREIGN',admin['id']))
+ admin=c.execute('SELECT * FROM users WHERE email=?',(ADMIN_EMAIL,)).fetchone()
+ if not admin:
+  c.execute('INSERT INTO users(email,login_id,password_hash,role,status,name) VALUES(?,?,?,?,?,?)',(ADMIN_EMAIL,'SOVEREIGN',hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest(),'SOVEREIGN','CREATOR','VCMC Sovereign'))
+ else:
+  if not admin['login_id']: c.execute('UPDATE users SET login_id=? WHERE id=?',('SOVEREIGN',admin['id']))
  for row in [('DEST-001','MODAL_PENGEMBANGAN','CAPITAL'),('DEST-002','AMAL_ZAKAT_RESERVE','AMAL_ZAKAT_RESERVE'),('DEST-003','HAK_CIPTA_IP','IP')]: c.execute('INSERT OR IGNORE INTO destinations VALUES(?,?,?,1)',row)
- c.execute("INSERT OR IGNORE INTO providers VALUES('PJP-SIM-001','Simulation Provider',0)"); c.commit(); c.close()
+ c.execute("INSERT OR IGNORE INTO providers VALUES('PJP-SIM-001','Simulation Provider',0)")
+ c.commit(); c.close()
 def calc(g):
  g=int(g); z=g*25//1000; r=g-z; m=r*40//100; p=r*40//100; a=r-m-p; ip=p*40//100; dev=p*40//100; reserve=p-ip-dev
  return {'gross':g,'zakat':z,'mitra':m,'pusat':p,'amal':a,'ip':ip,'development':dev,'reserve':reserve,'formula_version':FORMULA_VERSION}
