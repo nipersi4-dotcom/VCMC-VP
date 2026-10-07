@@ -142,43 +142,7 @@ class H(BaseHTTPRequestHandler):
 <section id="login" class="login"><div class="top"><div class="brand"><div class="mark">V</div><div><div class="eyebrow">Universal Global Development Architecture</div><h1>VCMC-VP</h1><div class="muted">Public Global Partner Gateway</div></div></div></div><div class="card hero"><div class="eyebrow">GLOBAL PUBLIC ENTRANCE</div><h2 style="margin:5px 0 8px">Masuk ke jaringan VCMC</h2><p class="muted">Pintu publik terbuka. Email bukan satu-satunya cara identifikasi.</p><div id="public-presence" class="pill" style="margin-top:10px">LIVE NOW · memuat...</div><div class="actions" style="margin-top:14px"><button type="button" id="public-open" class="action" onclick="window.showPublicLane('open')"><b>Public / Independent</b><br><span class="muted">Ajukan akses atau peluang secara mandiri.</span></button><button type="button" id="public-invited" class="action" onclick="window.showPublicLane('invited')"><b>Invited / Existing Partner</b><br><span class="muted">Gunakan undangan atau hubungan yang sudah ada.</span></button><button type="button" id="public-register" class="action" onclick="window.showRegisterLane()"><b>Buat Identitas VCMC</b><br><span class="muted">Daftar mandiri sebagai Candidate.</span></button></div><div id="public-lane" style="margin-top:14px"></div></div><div class="card"><p class="muted" style="margin-bottom:10px">VCMC internal access</p><form id="login-form" method="post" action="/api/login"><select id="context" name="context" class="input" aria-label="Konteks masuk"><option value="PUBLIC">Public / Explore</option><option value="INDIVIDUAL">Individual</option><option value="PROFESSIONAL">Professional</option><option value="ENTREPRENEUR">Entrepreneur / Business</option><option value="ORGANIZATION">Organization</option><option value="CANDIDATE">Candidate</option><option value="PARTNER">Partner</option><option value="CREATOR">Creator / Pusat</option></select><input id="email" name="email" class="input" type="text" placeholder="Email / Login ID" autocomplete="username"><div class="password-wrap"><input id="password" name="password" class="input" type="password" placeholder="Password" autocomplete="current-password"><button type="button" id="password-toggle" class="password-toggle" onpointerdown="window.togglePassword();event.preventDefault()" aria-label="Tampilkan password" title="Tampilkan password"><svg id="password-eye" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path><circle cx="12" cy="12" r="2.5"></circle></svg></button></div><button type="submit" id="login-button" class="primary" onclick="event.preventDefault();window.login()">Masuk ke VCMC-VP</button><a href="/oauth/login/huggingface" class="action" style="display:block;text-decoration:none;text-align:center;margin-top:10px"><b>Masuk dengan Hugging Face</b><br><span class="muted">Gunakan akun Hugging Face yang sudah kamu miliki.</span></a><button type="button" class="action" style="display:block;width:100%;margin-top:10px" onclick="window.requestPasswordRecovery()"><b>Lupa password / Password recovery</b><br><span class="muted">Minta jalur reset tanpa membuka password akun.</span></button><div id="msg" class="muted" style="margin-top:10px"></div></form></div></section>
 <section id="app" class="hidden"><header class="top"><div class="brand"><div class="mark">V</div><div><div class="eyebrow">VCMC-VP</div><h1 id="title">Home</h1></div></div><button class="logout" onclick="logout()">Keluar</button></header><div id="content" class="screen"></div></section>
 </main><nav id="nav" class="hidden"><button data-tab="home" onclick="go('home')">⌂<br>Rumah</button><button data-tab="network" onclick="go(\'network\')">◉<br>Jaringan</button><button data-tab="explore" onclick="go(\'explore\')">▦<br>Ruang</button><button data-tab="evidence" onclick="go(\'evidence\')">✓<br>Bukti</button><button data-tab="profile" onclick="go(\'profile\')">◯<br>Akun</button></nav>
-<script>
-(function(){
-  function toggle(){
-    var p=document.getElementById('password'),e=document.getElementById('password-eye');
-    if(!p)return;
-    var show=p.type==='password';p.type=show?'text':'password';
-    if(e)e.innerHTML=show?'<path d="M3 3l18 18"></path><path d="M10.6 6.2A10.8 10.8 0 0 1 12 6c6.5 0 10 6 10 6a18 18 0 0 1-4 4.2M6.2 6.8C3.4 8.4 2 12 2 12s3.5 6 10 6c1.5 0 2.8-.3 4-.8"></path><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"></path>':'<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path><circle cx="12" cy="12" r="2.5"></circle>';
-  }
-  async function loginFallback(){
-    var m=document.getElementById('msg'),e=document.getElementById('email'),p=document.getElementById('password');
-    if(m)m.textContent='Memverifikasi identitas...';
-    try{
-      var r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:e?e.value:'',password:p?p.value:'',context:(document.getElementById('context')||{}).value||'PUBLIC'})});
-      var d=await r.json();
-      if(!r.ok){if(m)m.textContent=d.error==='unauthorized'?'Email atau password tidak cocok.':'Login gagal.';return;}
-      try{sessionStorage.setItem('vcmc_token',d.token)}catch(_){}
-      var l=document.getElementById('login'),a=document.getElementById('app'),n=document.getElementById('nav');
-      if(l)l.classList.add('hidden');if(a)a.classList.remove('hidden');if(n)n.classList.remove('hidden');
-      if(window.boot) return window.boot();
-      var c=document.getElementById('content'),t=document.getElementById('title');
-      if(t)t.textContent='Rumah';
-      if(c)c.innerHTML='<div class="card hero"><h2>Selamat datang di VCMC-VP</h2><p class="muted">Session active · <span id="session-role">SOVEREIGN</span> · context: <span id="session-context">CREATOR / PUSAT</span></p></div>';
-    }catch(_){if(m)m.textContent='Koneksi gagal.'}
-  }
-  window.__vcmcBootstrapLogin=loginFallback;
-  window.__vcmcBootstrapToggle=toggle;
-  document.addEventListener('click',function(ev){
-    var t=ev.target.closest && ev.target.closest('#password-toggle,#login-button');
-    if(!t)return;
-    if(t.id==='password-toggle'){ev.preventDefault();toggle();}
-    if(t.id==='login-button'){ev.preventDefault();loginFallback();}
-  },true);
-  document.addEventListener('submit',function(ev){
-    if(ev.target && ev.target.id==='login-form'){ev.preventDefault();loginFallback();}
-  },true);
-})();
-</script>
+
 <script>
 async function loadPublicPresence(){try{const r=await fetch('/api/public/presence',{cache:'no-store'});const d=await r.json();const el=document.getElementById('public-presence');if(el&&r.ok)el.textContent='LIVE NOW · '+d.live_now+' · '+d.registered_users+' registered';}catch(e){}}
 loadPublicPresence();setInterval(loadPublicPresence,15000);
@@ -273,42 +237,7 @@ function togglePassword(){const input=document.getElementById('password');const 
 async function logout(){try{await api('/api/logout',{method:'POST'})}catch(e){}sessionStorage.removeItem('vcmc_token');token=null;showLogin()}
 window.showPublicLane=showPublicLane;window.submitPublicRequest=submitPublicRequest;window.togglePassword=togglePassword;window.login=login;window.logout=logout;window.go=go;window.room=room;
 if(token)boot();
-</script><script>
-(function(){
-  function bind(){
-    var open=document.getElementById('public-open');
-    var invited=document.getElementById('public-invited');
-    var eye=document.getElementById('password-toggle');
-    var loginBtn=document.getElementById('login-button');
-    if(open) open.addEventListener('click',function(){showPublicLane('open')});
-    if(invited) invited.addEventListener('click',function(){showPublicLane('invited')});
-    if(eye) eye.addEventListener('click',togglePassword);
-    if(loginBtn) loginBtn.addEventListener('click',login);
-    var lane=document.getElementById('public-lane');
-    if(lane) lane.addEventListener('click',function(e){
-      var close=e.target.closest('[data-public-close]');
-      if(close){ lane.innerHTML=''; return; }
-      var submit=e.target.closest('[data-public-submit]');
-      if(submit){ submitPublicRequest(submit.getAttribute('data-public-submit')); }
-    });
-  }
-  document.addEventListener('pointerup',function(e){var t=e.target.closest('#public-open,#public-invited,#password-toggle,#login-button');if(t){if(t.id==='public-open')showPublicLane('open');else if(t.id==='public-invited')showPublicLane('invited');else if(t.id==='password-toggle')togglePassword();else if(t.id==='login-button')login();}}); if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',bind); else bind();
-})();
-</script><script>(function(){if(window.__vcmcRoomFallbackInstalled)return;window.__vcmcRoomFallbackInstalled=true;function e(x){return String(x==null?'':x).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}async function b(){try{var a=await fetch('/api/me',{credentials:'same-origin'}),h=await fetch('/api/home',{credentials:'same-origin'});if(!a.ok||!h.ok)throw Error('session');window.__vcmcMe=await a.json();window.__vcmcHome=await h.json();document.getElementById('login').classList.add('hidden');document.getElementById('app').classList.remove('hidden');document.getElementById('nav').classList.remove('hidden');window.__vcmcLobby()}catch(x){console.error(x)}}window.__vcmcLobby=function(){var h=window.__vcmcHome||{rooms:[]},m=window.__vcmcMe||{},rs=h.rooms||[];document.getElementById('title').textContent='Lobby';document.getElementById('content').innerHTML='<div class="card hero"><div class="eyebrow">VCMC-VP · LOBBY</div><h2>Selamat datang</h2><p class="muted">Sesi aktif · '+e(m.role||'')+'</p></div><section class="sectionhead"><h3>VCMC Rooms</h3><span>'+rs.length+' rooms</span></section><div class="rooms">'+rs.map(function(r){return '<button class="room" type="button" data-vroom="'+e(r.id)+'" style="text-align:left;color:inherit"><b>'+e(r.name)+'</b><br><small>'+e(r.status)+'</small></button>'}).join('')+'</div>';document.querySelectorAll('[data-vroom]').forEach(function(x){x.addEventListener('click',function(){window.__vcmcRoom(x.getAttribute('data-vroom'))})})};window.__vcmcRoom=function(id){
-  var h=window.__vcmcHome||{rooms:[]},r=(h.rooms||[]).find(function(x){return x.id===id});
-  if(!r)return;
-  var c=document.getElementById('content'),t=document.getElementById('title');
-  if(t)t.textContent=r.name;
-  if(id==='architecture'){
-    c.innerHTML='<div class="card hero"><button class="back" type="button" onclick="window.__vcmcLobby()">← Kembali ke Lobi</button><div class="eyebrow">VCMC ROOM · FUNCTIONAL</div><h2>Arsitektur</h2><p class="muted">Pilih bagian arsitektur untuk membuka detail.</p></div><div class="rooms"><button class="room" type="button" data-ar="foundation"><b>Identity / Foundation</b><br><small>TAQDA · Vision · Principles</small></button><button class="room" type="button" data-ar="governance"><b>Governance</b><br><small>Authority · Boundaries · Accountability</small></button><button class="room" type="button" data-ar="evidence"><b>Evidence</b><br><small>Proof · Verification · Audit</small></button><button class="room" type="button" data-ar="reconciliation"><b>Reconciliation</b><br><small>Expected · Actual · Ledger</small></button><button class="room" type="button" data-ar="network"><b>Global Network</b><br><small>Cross-border · Interaction</small></button><button class="room" type="button" data-ar="development"><b>Development</b><br><small>Need · Direction · Result</small></button></div>';
-    document.querySelectorAll('[data-ar]').forEach(function(x){x.addEventListener('click',function(){
-      var m={foundation:['Identity / Foundation','TAQDA → VCMC → Real Development → Real Benefit → Global Scale'],governance:['Governance','MENENTUKAN ≠ MENGHITUNG ≠ MEMEGANG DANA ≠ MEMBAYAR ≠ MENERIMA'],evidence:['Evidence','CLAIM → RECORDED → EVIDENCE SUBMITTED → VERIFIED → RECONCILED → PROVEN'],reconciliation:['Reconciliation','Amount → Destination → Purpose → Responsible Party → Evidence → Result → Reconciliation'],network:['Global Network','Identify → Screen → Classify → Route → Authorize → Interact → Evidence → Reconcile'],development:['Development','Need → Direction → Priority → Program → Project → Pilot → Result → Real Benefit']}[x.getAttribute('data-ar')]||['Architecture','VCMC Architecture'];
-      c.innerHTML='<div class="card hero"><button class="back" type="button" onclick="window.__vcmcRoom(\'architecture\')">← Kembali ke Arsitektur</button><div class="eyebrow">ARCHITECTURE DETAIL</div><h2>'+m[0]+'</h2><p class="muted">'+m[1]+'</p></div><div class="card detail"><b>Boundary</b><p class="muted">Informasi ini adalah detail arsitektur. Authority dan proof tetap terpisah dan harus dibuktikan melalui tindakan yang berwenang.</p></div>';
-    })});
-    return;
-  }
-  c.innerHTML='<div class="card hero"><button class="back" type="button" onclick="window.__vcmcLobby()">← Kembali ke Lobi</button><div class="eyebrow">VCMC ROOM</div><h2>'+esc(r.name)+'</h2><p class="muted">Status: '+esc(r.status)+'</p></div><div class="card detail"><b>Fungsi</b><p class="muted">Room '+esc(r.id)+' tersedia. Fungsi operasional berikutnya harus dibuka melalui API dan authority yang sesuai.</p></div>';
-};;var lo=document.querySelector('#app .logout');if(lo){lo.onclick=function(ev){ev.preventDefault();fetch('/api/logout',{method:'POST',credentials:'same-origin'}).finally(function(){try{sessionStorage.removeItem('vcmc_token')}catch(e){};document.getElementById('app').classList.add('hidden');document.getElementById('nav').classList.add('hidden');document.getElementById('login').classList.remove('hidden')})}}if(!window.boot)window.boot=b;if(!window.go)window.go=function(t){window.__vcmcLobby()};if(!window.room)window.room=function(id){window.__vcmcRoom(id)}})();</script></body></html>'''
+</script></body></html>'''
    b=html.encode(); self.send_response(200); self.send_header('Content-Type','text/html; charset=utf-8'); self.send_header('Content-Length',str(len(b))); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(b); return
   if p=='/health': return self.sendj(200,{'status':'ok','machine':'VCMC-VP','real_money_enabled':REAL_MONEY})
   if p=='/api/system/readiness':
