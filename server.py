@@ -34,7 +34,7 @@ def init():
  c.execute("UPDATE users SET name='VCMC Sovereign' WHERE email=? AND (name IS NULL OR name='')",(ADMIN_EMAIL,))
  admin=c.execute('SELECT * FROM users WHERE email=?',(ADMIN_EMAIL,)).fetchone()
  if not admin:
-  c.execute('INSERT INTO users(email,login_id,password_hash,role,status,name) VALUES(?,?,?,?,?,?)',(ADMIN_EMAIL,'SOVEREIGN',hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest(),'SOVEREIGN','CREATOR','VCMC Sovereign'))
+  c.execute('INSERT INTO users(email,login_id,password_hash,role,status,name) VALUES(?,?,?,?,?,?)',(ADMIN_EMAIL,'SOVEREIGN',hash_password(ADMIN_PASSWORD),'SOVEREIGN','CREATOR','VCMC Sovereign'))
  else:
   if not admin['login_id']: c.execute('UPDATE users SET login_id=? WHERE id=?',('SOVEREIGN',admin['id']))
  for row in [('DEST-001','MODAL_PENGEMBANGAN','CAPITAL'),('DEST-002','AMAL_ZAKAT_RESERVE','AMAL_ZAKAT_RESERVE'),('DEST-003','HAK_CIPTA_IP','IP')]: c.execute('INSERT OR IGNORE INTO destinations VALUES(?,?,?,1)',row)
@@ -463,7 +463,8 @@ if(token)boot();
    user=self.auth()
    if not user: return self.sendj(401,{'error':'unauthorized'})
    current=str(data.get('current_password',''))
-   if hashlib.sha256(current.encode()).hexdigest()!=user['password_hash']: return self.sendj(401,{'error':'current_password_incorrect'})
+   ok,_=verify_password(current,user['password_hash'])
+   if not ok: return self.sendj(401,{'error':'current_password_incorrect'})
    new_email=str(data.get('email',user['email'])).strip().lower(); new_name=str(data.get('name',user.get('name') or '')).strip(); language=str(data.get('language',user.get('language') or 'id')).strip().lower()
    if language not in {'id','en','ar','es','fr'}: return self.sendj(400,{'error':'invalid_language'})
    if not new_email or '@' not in new_email: return self.sendj(400,{'error':'valid_email_required'})
