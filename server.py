@@ -91,13 +91,13 @@ class H(BaseHTTPRequestHandler):
    with urllib.request.urlopen(req,timeout=20) as resp: info=json.loads(resp.read().decode())
   except Exception:
    return self.send_html(502,'<h2>Login Hugging Face belum dapat diselesaikan.</h2><p>VCMC-VP tidak dapat memverifikasi sesi Hugging Face saat ini.</p>')
-  sub=str(info.get('sub') or '').strip(); username=str(info.get('preferred_username') or info.get('name') or '').strip(); email=str(info.get('email') or '').strip().lower(); name=username or email or 'Hugging Face user'
+  sub=str(info.get('sub') or '').strip(); username=str(info.get('preferred_username') or info.get('name') or '').strip(); email=str(info.get('email') or '').strip().lower(); email_verified=bool(info.get('email_verified')); name=username or email or 'Hugging Face user'
   if not sub: return self.send_html(502,'<h2>Identitas Hugging Face tidak lengkap.</h2><p>Login ditahan.</p>')
   c=conn(); u=c.execute('SELECT * FROM users WHERE oauth_provider=? AND oauth_sub=?',('huggingface',sub)).fetchone()
-  if not u and email: u=c.execute('SELECT * FROM users WHERE email=?',(email,)).fetchone()
+  if not u and email and email_verified: u=c.execute('SELECT * FROM users WHERE email=?',(email,)).fetchone()
   if u and u['role']=='SOVEREIGN' and not (u['oauth_provider']=='huggingface' and u['oauth_sub']==sub): u=None
   if not u:
-   safe_email=email if email and not c.execute('SELECT 1 FROM users WHERE email=?',(email,)).fetchone() else 'hf+'+sub[:24]+'@oauth.vcmc.local'
+   safe_email=email if email and email_verified and not c.execute('SELECT 1 FROM users WHERE email=?',(email,)).fetchone() else 'hf+'+sub[:24]+'@oauth.vcmc.local'
    login_id='HF-'+sub[:16].upper()
    c.execute('INSERT INTO users(email,login_id,password_hash,role,name,oauth_provider,oauth_sub) VALUES(?,?,?,?,?,?,?)',(safe_email,login_id,'','PUBLIC',name,'huggingface',sub))
    u=c.execute('SELECT * FROM users WHERE oauth_provider=? AND oauth_sub=?',('huggingface',sub)).fetchone()
