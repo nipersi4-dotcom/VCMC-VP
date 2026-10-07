@@ -1,9 +1,10 @@
-import os, json, sqlite3, hashlib, secrets, shutil, time
+import os, json, sqlite3, hashlib, secrets, shutil, time, base64, urllib.request, urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlencode, parse_qs
 from datetime import datetime, timezone
 DB=os.getenv('VCMC_DB','vcmp.db'); HOST=os.getenv('HOST','0.0.0.0'); PORT=int(os.getenv('PORT','10000'))
-ADMIN_EMAIL=os.getenv('VCMC_ADMIN_EMAIL',''); ADMIN_PASSWORD=os.getenv('VCMC_ADMIN_PASSWORD','')
+ADMIN_EMAIL=os.getenv('VCMC_ADMIN_EMAIL',''); ADMIN_PASSWORD=os.getenv('VCMC_ADMIN_PASSWORD',''); PUBLIC_BASE_URL=os.getenv('PUBLIC_BASE_URL','').rstrip('/')
+HF_OAUTH_STATES={}
 REAL_MONEY=os.getenv('VCMC_REAL_MONEY_ENABLED','false').lower()=='true'; BACKUP_DIR=os.getenv('VCMC_BACKUP_DIR','backups')
 RULE_ID='VCMC-ALLOC-001'; RULE_VERSION='1.0.0'; FORMULA_VERSION='1.0.0'
 def now(): return datetime.now(timezone.utc).isoformat()
@@ -11,10 +12,15 @@ def conn():
  c=sqlite3.connect(DB,check_same_thread=False); c.row_factory=sqlite3.Row; return c
 def init():
  if not ADMIN_EMAIL or not ADMIN_PASSWORD: raise RuntimeError('VCMC_ADMIN_EMAIL and VCMC_ADMIN_PASSWORD must be set')
- c=conn(); c.executescript('''CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY,email TEXT UNIQUE,login_id TEXT UNIQUE,password_hash TEXT,role TEXT,name TEXT); CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id INTEGER,expires REAL,context TEXT DEFAULT 'PUBLIC'); CREATE TABLE IF NOT EXISTS cases(id TEXT PRIMARY KEY,request_id TEXT UNIQUE,state TEXT,gross INTEGER,created_at TEXT); CREATE TABLE IF NOT EXISTS case_events(id INTEGER PRIMARY KEY,case_id TEXT,state TEXT,at TEXT,actor TEXT); CREATE TABLE IF NOT EXISTS payment_instructions(id INTEGER PRIMARY KEY,case_id TEXT,provider_id TEXT,status TEXT,created_at TEXT); CREATE TABLE IF NOT EXISTS ledger(id INTEGER PRIMARY KEY,case_id TEXT,amount INTEGER,kind TEXT,created_at TEXT); CREATE TABLE IF NOT EXISTS allocations(id INTEGER PRIMARY KEY,case_id TEXT,dest TEXT,amount INTEGER,kind TEXT); CREATE TABLE IF NOT EXISTS destinations(id TEXT PRIMARY KEY,label TEXT,kind TEXT,active INTEGER); CREATE TABLE IF NOT EXISTS evidence(id INTEGER PRIMARY KEY,case_id TEXT,kind TEXT,sha256 TEXT,created_at TEXT); CREATE TABLE IF NOT EXISTS reconciliations(id INTEGER PRIMARY KEY,case_id TEXT,status TEXT,expected INTEGER,executed INTEGER,received INTEGER,ledger INTEGER,created_at TEXT); CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY,at TEXT,actor TEXT,action TEXT,entity TEXT,details TEXT); CREATE TABLE IF NOT EXISTS idempotency(key TEXT PRIMARY KEY,response TEXT,created_at TEXT); CREATE TABLE IF NOT EXISTS backups(id INTEGER PRIMARY KEY,path TEXT,sha256 TEXT,created_at TEXT); CREATE TABLE IF NOT EXISTS providers(id TEXT PRIMARY KEY,name TEXT,execution_verified INTEGER); CREATE TABLE IF NOT EXISTS partners(id TEXT PRIMARY KEY,name TEXT NOT NULL,kind TEXT NOT NULL,status TEXT NOT NULL,contact TEXT,created_at TEXT,updated_at TEXT); CREATE TABLE IF NOT EXISTS pilots(id TEXT PRIMARY KEY,name TEXT NOT NULL,partner_id TEXT,status TEXT NOT NULL,objective TEXT,created_at TEXT,updated_at TEXT); CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY,name TEXT NOT NULL,kind TEXT NOT NULL,status TEXT NOT NULL,pilot_id TEXT,created_at TEXT,updated_at TEXT); CREATE TABLE IF NOT EXISTS directions(id TEXT PRIMARY KEY,name TEXT NOT NULL,priority TEXT NOT NULL,status TEXT NOT NULL,created_at TEXT,updated_at TEXT); CREATE TABLE IF NOT EXISTS capital_plans(id TEXT PRIMARY KEY,name TEXT NOT NULL,purpose TEXT NOT NULL,status TEXT NOT NULL,amount INTEGER NOT NULL,created_at TEXT,updated_at TEXT); CREATE TABLE IF NOT EXISTS partner_access_requests(id TEXT PRIMARY KEY,request_type TEXT NOT NULL,name TEXT NOT NULL,organization TEXT,country TEXT,contact_type TEXT,contact_value TEXT,language TEXT NOT NULL,message TEXT,status TEXT NOT NULL,created_at TEXT,updated_at TEXT); CREATE TABLE IF NOT EXISTS access_activations(code TEXT PRIMARY KEY,request_id TEXT NOT NULL,email TEXT NOT NULL,role TEXT NOT NULL,expires REAL NOT NULL,used INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL);''')
+ c=conn(); c.executescript('''CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY,email TEXT UNIQUE,login_id TEXT UNIQUE,password_hash TEXT,role TEXT,name TEXT,oauth_provider TEXT,oauth_sub TEXT); CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id INTEGER,expires REAL,context TEXT DEFAULT 'PUBLIC'); CREATE TABLE IF NOT EXISTS cases(id TEXT PRIMARY KEY,request_id TEXT UNIQUE,state TEXT,gross INTEGER,created_at TEXT); CREATE TABLE IF NOT EXISTS case_events(id INTEGER PRIMARY KEY,case_id TEXT,state TEXT,at TEXT,actor TEXT); CREATE TABLE IF NOT EXISTS payment_instructions(id INTEGER PRIMARY KEY,case_id TEXT,provider_id TEXT,status TEXT,created_at TEXT); CREATE TABLE IF NOT EXISTS ledger(id INTEGER PRIMARY KEY,case_id TEXT,amount INTEGER,kind TEXT,created_at TEXT); CREATE TABLE IF NOT EXISTS allocations(id INTEGER PRIMARY KEY,case_id TEXT,dest TEXT,amount INTEGER,kind TEXT); CREATE TABLE IF NOT EXISTS destinations(id TEXT PRIMARY KEY,label TEXT,kind TEXT,active INTEGER); CREATE TABLE IF NOT EXISTS evidence(id INTEGER PRIMARY KEY,case_id TEXT,kind TEXT,sha256 TEXT,created_at TEXT); CREATE TABLE IF NOT EXISTS reconciliations(id INTEGER PRIMARY KEY,case_id TEXT,status TEXT,expected INTEGER,executed INTEGER,received INTEGER,ledger INTEGER,created_at TEXT); CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY,at TEXT,actor TEXT,action TEXT,entity TEXT,details TEXT); CREATE TABLE IF NOT EXISTS idempotency(key TEXT PRIMARY KEY,response TEXT,created_at TEXT); CREATE TABLE IF NOT EXISTS backups(id INTEGER PRIMARY KEY,path TEXT,sha256 TEXT,created_at TEXT); CREATE TABLE IF NOT EXISTS providers(id TEXT PRIMARY KEY,name TEXT,execution_verified INTEGER); CREATE TABLE IF NOT EXISTS partners(id TEXT PRIMARY KEY,name TEXT NOT NULL,kind TEXT NOT NULL,status TEXT NOT NULL,contact TEXT,created_at TEXT,updated_at TEXT); CREATE TABLE IF NOT EXISTS pilots(id TEXT PRIMARY KEY,name TEXT NOT NULL,partner_id TEXT,status TEXT NOT NULL,objective TEXT,created_at TEXT,updated_at TEXT); CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY,name TEXT NOT NULL,kind TEXT NOT NULL,status TEXT NOT NULL,pilot_id TEXT,created_at TEXT,updated_at TEXT); CREATE TABLE IF NOT EXISTS directions(id TEXT PRIMARY KEY,name TEXT NOT NULL,priority TEXT NOT NULL,status TEXT NOT NULL,created_at TEXT,updated_at TEXT); CREATE TABLE IF NOT EXISTS capital_plans(id TEXT PRIMARY KEY,name TEXT NOT NULL,purpose TEXT NOT NULL,status TEXT NOT NULL,amount INTEGER NOT NULL,created_at TEXT,updated_at TEXT); CREATE TABLE IF NOT EXISTS partner_access_requests(id TEXT PRIMARY KEY,request_type TEXT NOT NULL,name TEXT NOT NULL,organization TEXT,country TEXT,contact_type TEXT,contact_value TEXT,language TEXT NOT NULL,message TEXT,status TEXT NOT NULL,created_at TEXT,updated_at TEXT); CREATE TABLE IF NOT EXISTS access_activations(code TEXT PRIMARY KEY,request_id TEXT NOT NULL,email TEXT NOT NULL,role TEXT NOT NULL,expires REAL NOT NULL,used INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL);''')
  try: c.execute('ALTER TABLE users ADD COLUMN login_id TEXT')
  except sqlite3.OperationalError: pass
  c.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_login_id ON users(login_id) WHERE login_id IS NOT NULL')
+ try: c.execute('ALTER TABLE users ADD COLUMN oauth_provider TEXT')
+ except sqlite3.OperationalError: pass
+ try: c.execute('ALTER TABLE users ADD COLUMN oauth_sub TEXT')
+ except sqlite3.OperationalError: pass
+ c.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oauth ON users(oauth_provider,oauth_sub) WHERE oauth_provider IS NOT NULL AND oauth_sub IS NOT NULL')
  try: c.execute("ALTER TABLE sessions ADD COLUMN context TEXT DEFAULT 'PUBLIC'")
  except sqlite3.OperationalError: pass
  try: c.execute('ALTER TABLE users ADD COLUMN name TEXT')
@@ -54,8 +60,58 @@ class H(BaseHTTPRequestHandler):
      r=c.execute('SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.expires>?',(t,time.time())).fetchone()
      if r: break
   c.close(); return dict(r) if r else None
+ def base_url(self):
+  if PUBLIC_BASE_URL: return PUBLIC_BASE_URL
+  proto=self.headers.get('X-Forwarded-Proto','').split(',')[0].strip() or ('https' if self.headers.get('Host','').endswith('.rollout.click') else 'http')
+  return proto+'://'+self.headers.get('Host','localhost')
+ def send_html(self,code,html,cookie=None):
+  b=html.encode(); self.send_response(code); self.send_header('Content-Type','text/html; charset=utf-8'); self.send_header('Content-Length',str(len(b))); self.send_header('Cache-Control','no-store')
+  if cookie: self.send_header('Set-Cookie',cookie)
+  self.end_headers(); self.wfile.write(b)
+ def hf_oauth_start(self):
+  base=self.base_url(); client_id=base+'/.well-known/oauth-cimd'; redirect_uri=base+'/oauth/callback/huggingface'
+  state=secrets.token_urlsafe(32); verifier=secrets.token_urlsafe(64)
+  challenge=base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b'=').decode()
+  HF_OAUTH_STATES[state]={'verifier':verifier,'created':time.time()}
+  q=urlencode({'client_id':client_id,'redirect_uri':redirect_uri,'response_type':'code','scope':'openid profile email','state':state,'code_challenge':challenge,'code_challenge_method':'S256'})
+  self.send_response(302); self.send_header('Location','https://huggingface.co/oauth/authorize?'+q); self.send_header('Cache-Control','no-store'); self.end_headers()
+ def hf_oauth_callback(self):
+  params=parse_qs(urlparse(self.path).query); state=params.get('state',[''])[0]; code=params.get('code',[''])[0]
+  if params.get('error'): return self.send_html(400,'<h2>Hugging Face login dibatalkan.</h2><p>Silakan kembali ke VCMC-VP dan coba lagi.</p>')
+  saved=HF_OAUTH_STATES.pop(state,None)
+  if not state or not code or not saved or time.time()-saved['created']>600: return self.send_html(400,'<h2>Login Hugging Face tidak valid.</h2><p>State OAuth tidak valid atau sudah kedaluwarsa.</p>')
+  base=self.base_url(); client_id=base+'/.well-known/oauth-cimd'; redirect_uri=base+'/oauth/callback/huggingface'
+  form=urlencode({'grant_type':'authorization_code','client_id':client_id,'code':code,'code_verifier':saved['verifier'],'redirect_uri':redirect_uri}).encode()
+  try:
+   req=urllib.request.Request('https://huggingface.co/oauth/token',data=form,headers={'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json'})
+   with urllib.request.urlopen(req,timeout=20) as resp: tok=json.loads(resp.read().decode())
+   access_token=tok.get('access_token','')
+   if not access_token: raise ValueError('missing_access_token')
+   req=urllib.request.Request('https://huggingface.co/oauth/userinfo',headers={'Authorization':'Bearer '+access_token,'Accept':'application/json'})
+   with urllib.request.urlopen(req,timeout=20) as resp: info=json.loads(resp.read().decode())
+  except Exception:
+   return self.send_html(502,'<h2>Login Hugging Face belum dapat diselesaikan.</h2><p>VCMC-VP tidak dapat memverifikasi sesi Hugging Face saat ini.</p>')
+  sub=str(info.get('sub') or '').strip(); username=str(info.get('preferred_username') or info.get('name') or '').strip(); email=str(info.get('email') or '').strip().lower(); name=username or email or 'Hugging Face user'
+  if not sub: return self.send_html(502,'<h2>Identitas Hugging Face tidak lengkap.</h2><p>Login ditahan.</p>')
+  c=conn(); u=c.execute('SELECT * FROM users WHERE oauth_provider=? AND oauth_sub=?',('huggingface',sub)).fetchone()
+  if not u and email: u=c.execute('SELECT * FROM users WHERE email=?',(email,)).fetchone()
+  if u and u['role']=='SOVEREIGN' and not (u.get('oauth_provider')=='huggingface' and u.get('oauth_sub')==sub): u=None
+  if not u:
+   safe_email=email if email and not c.execute('SELECT 1 FROM users WHERE email=?',(email,)).fetchone() else 'hf+'+sub[:24]+'@oauth.vcmc.local'
+   login_id='HF-'+sub[:16].upper()
+   c.execute('INSERT INTO users(email,login_id,password_hash,role,name,oauth_provider,oauth_sub) VALUES(?,?,?,?,?,?,?)',(safe_email,login_id,'','PUBLIC',name,'huggingface',sub))
+   u=c.execute('SELECT * FROM users WHERE oauth_provider=? AND oauth_sub=?',('huggingface',sub)).fetchone()
+  else:
+   c.execute('UPDATE users SET name=?,oauth_provider=?,oauth_sub=? WHERE id=?',(name,'huggingface',sub,u['id']))
+  tok2=secrets.token_urlsafe(32); c.execute('INSERT INTO sessions(token,user_id,expires,context) VALUES(?,?,?,?)',(tok2,u['id'],time.time()+86400,'PUBLIC')); c.commit(); c.close()
+  audit(u['email'],'LOGIN_HUGGINGFACE','USER',username or sub)
+  self.send_response(303); self.send_header('Set-Cookie','vcmc_token='+tok2+'; Path=/; HttpOnly; Secure; SameSite=Lax'); self.send_header('Location','/'); self.end_headers()
  def do_GET(self):
   p=urlparse(self.path).path
+  if p=='/.well-known/oauth-cimd':
+   base=self.base_url(); return self.sendj(200,{'client_id':base+'/.well-known/oauth-cimd','client_name':'VCMC-VP','redirect_uris':[base+'/oauth/callback/huggingface'],'token_endpoint_auth_method':'none','client_uri':base})
+  if p=='/oauth/login/huggingface': return self.hf_oauth_start()
+  if p=='/oauth/callback/huggingface': return self.hf_oauth_callback()
   if p=='/':
    html='''<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#071b2b"><title>VCMC-VP</title><style>
 :root{--bg:#071225;--panel:#101f3b;--panel2:#162a4d;--line:rgba(212,175,55,.16);--text:#f7f9ff;--muted:#aebbd0;--accent:#d4af37;--warn:#e0b84f}
