@@ -27,4 +27,4 @@ jobs:
         env:
           HF_OIDC_RESOURCE: spaces/VCMC-PUSAT/VCMC-VP
         run: |
-          hf upload spaces/VCMC-PUSAT/VCMC-VP docs/index.html index.html --repo-type=space --commit-message "Publish VCMC-VP gateway from GitHub"
+          hf upload VCMC-PUSAT/VCMC-VP docs/index.html index.html --repo-type=space --commit-message "Publish VCMC-VP gateway from GitHub"
