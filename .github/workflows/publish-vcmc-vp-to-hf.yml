@@ -1,0 +1,30 @@
+name: Publish VCMC-VP static gateway to Hugging Face
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "docs/index.html"
+      - ".github/workflows/publish-vcmc-vp-to-hf.yml"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout VCMC-VP
+        uses: actions/checkout@v6
+
+      - name: Install Hugging Face CLI
+        run: |
+          python3 -m pip install --upgrade "huggingface_hub>=1.19.0"
+
+      - name: Publish gateway
+        env:
+          HF_OIDC_RESOURCE: spaces/VCMC-PUSAT/VCMC-VP
+        run: |
+          hf upload spaces/VCMC-PUSAT/VCMC-VP docs/index.html index.html --repo-type=space --commit-message "Publish VCMC-VP gateway from GitHub"
