@@ -4,8 +4,9 @@ WORKDIR /app
 
 COPY . .
 
-ENV PORT=10000
+# Hugging Face Spaces defaults to 7860. Render supplies its own PORT at runtime.
+ENV PORT=7860
 
-EXPOSE 10000
+EXPOSE 7860
 
 CMD ["python", "server.py"]
