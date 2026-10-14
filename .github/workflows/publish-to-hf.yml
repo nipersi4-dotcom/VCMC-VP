@@ -27,4 +27,4 @@ jobs:
         env:
           HF_OIDC_RESOURCE: spaces/VCMC-PUSAT/VCMC-VP
         run: |
-          hf upload spaces/VCMC-PUSAT/VCMC-VP . . --commit-message "VCMC-VP GitHub main $GITHUB_SHA"
+          hf upload VCMC-PUSAT/VCMC-VP . . --repo-type space --commit-message "VCMC-VP GitHub main $GITHUB_SHA"
