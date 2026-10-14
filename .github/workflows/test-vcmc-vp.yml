@@ -30,3 +30,6 @@ jobs:
 
       - name: Run frontend contract and JavaScript syntax tests
         run: python test_frontend_contract.py
+
+      - name: Run public registration and email verification contract tests
+        run: python test_registration_flow.py
