@@ -378,6 +378,7 @@ class H(BaseHTTPRequestHandler):
    if context not in {'INDIVIDUAL','PROFESSIONAL','ENTREPRENEUR','ORGANIZATION','CANDIDATE'}: return self.sendj(400,{'error':'invalid_registration_context'})
    if not name or len(name)>120 or not email or len(email)>254 or '@' not in email or email.startswith('@') or email.endswith('@'): return self.sendj(400,{'error':'name_and_valid_email_required'})
    if len(password)<8 or len(password)>256: return self.sendj(400,{'error':'password_min_8_chars'})
+   if data.get('accept_terms') not in ('on',True,'true','1'): return self.sendj(400,{'error':'terms_acknowledgement_required','message':'Konfirmasi syarat pendaftaran terlebih dahulu.'})
    if not RESEND_API_KEY or not RESEND_FROM_EMAIL: return self.sendj(503,{'error':'email_verification_not_configured','message':'Pendaftaran belum tersedia karena layanan verifikasi email belum dikonfigurasi. Tidak ada akun yang dibuat.'})
    c=conn()
    if c.execute('SELECT 1 FROM users WHERE email=?',(email,)).fetchone(): c.close(); return self.sendj(200,{'ok':True,'status':'verification_if_available','message':'Jika alamat email dapat digunakan, instruksi verifikasi akan dikirim. Periksa kotak masuk dan spam.'})
