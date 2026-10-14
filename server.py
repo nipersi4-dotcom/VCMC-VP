@@ -45,6 +45,9 @@ def calc(g):
  return {'gross':g,'zakat':z,'mitra':m,'pusat':p,'amal':a,'ip':ip,'development':dev,'reserve':reserve,'formula_version':FORMULA_VERSION}
 def audit(actor,action,entity,details=''):
  c=conn(); c.execute('INSERT INTO audit(at,actor,action,entity,details) VALUES(?,?,?,?,?)',(now(),actor,action,entity,details)); c.commit(); c.close()
+def sovereign(user):
+ return bool(user and user.get('role')=='SOVEREIGN')
+
 def external_role(status):
  return 'PARTNER' if status=='PARTNER' else 'CANDIDATE'
 def hash_password(password):
