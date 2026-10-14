@@ -25,6 +25,9 @@ for room in required_rooms:
 for required in ['Universal Global Development Architecture','TAQDA','REAL_MONEY','Request / Invitation','IDENTITY & SESSION','Evidence & Verification','Reconciliation','Payment / Providers','Change password','Logout','/api/system/readiness','/api/public/access-requests']:
  assert required in html, 'missing frontend contract: '+required
 assert 'vcmc_api_base' in html, 'backend URL must be configurable'
+assert 'class="tile tile-action" onclick="go(' in html, 'Home shortcuts must be clickable navigation controls'
+assert 'Navigasi lintas-ruang' in html, 'Rooms must expose connected-room navigation'
+assert 'Status ini adalah status implementasi' in html or 'bukan bukti bahwa backend atau operasi nyata telah lulus' in html, 'Room status must not imply operational proof'
 assert 'password' in html.lower() and 'autocomplete="current-password"' in html, 'password UX missing'
 assert 'Payment instruction only' in html or 'simulation' in html.lower(), 'payment simulation boundary missing'
 assert 'REAL_MONEY_ENABLED=true' not in html, 'frontend must not enable real money'
