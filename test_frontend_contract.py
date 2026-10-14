@@ -22,7 +22,7 @@ p=CheckHTML(); p.feed(html); p.close()
 required_rooms=['architecture','network','partners','pilots','projects','development','capital','distribution','evidence','reconciliation','security','system','payment']
 for room in required_rooms:
  assert re.search(r"id\s*:\s*['\"]"+re.escape(room)+r"['\"]",html), 'missing room: '+room
-for required in ['Universal Global Development Architecture','TAQDA','REAL_MONEY','Request / Invitation','Identity & Session','Evidence & Verification','Reconciliation','Payment / Providers','Change password','Logout','/api/system/readiness','/api/public/access-requests']:
+for required in ['Universal Global Development Architecture','TAQDA','REAL_MONEY','Request / Invitation','IDENTITY & SESSION','Evidence & Verification','Reconciliation','Payment / Providers','Change password','Logout','/api/system/readiness','/api/public/access-requests']:
  assert required in html, 'missing frontend contract: '+required
 assert 'vcmc_api_base' in html, 'backend URL must be configurable'
 assert 'password' in html.lower() and 'autocomplete="current-password"' in html, 'password UX missing'
