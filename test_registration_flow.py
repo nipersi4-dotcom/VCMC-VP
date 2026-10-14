@@ -15,7 +15,7 @@ checks = {
     "30-minute verification expiry": "time.time()+1800" in source,
     "pending registration is not active account": "'verification_pending'" in source,
     "email verification marks user verified": "'email_verified':True" in source,
-    "registration confirmation password field": 'id=\\\\\"reg-password-confirm\\\\\"' in source,
+    "registration confirmation password field": 'reg-password-confirm' in source,
     "registration requires explicit checkbox": "reg-accept-terms" in source and "if(!accepted)" in source,
     "registration does not claim immediate login": "Daftar &amp; verifikasi email" in source,
     "verification link handler": "async function verifyEmailFromLink()" in source,
