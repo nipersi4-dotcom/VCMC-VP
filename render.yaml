@@ -14,3 +14,12 @@ services:
 
       - key: VCMC_ADMIN_PASSWORD
         sync: false
+
+      - key: RESEND_API_KEY
+        sync: false
+
+      - key: RESEND_FROM_EMAIL
+        sync: false
+
+      - key: PUBLIC_BASE_URL
+        value: "https://nipersi4-dotcom.github.io/VCMC-VP"
