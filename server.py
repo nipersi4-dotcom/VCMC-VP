@@ -291,6 +291,22 @@ class H(BaseHTTPRequestHandler):
   else:
    try: data=self.body()
    except: return self.sendj(400,{'error':'invalid_json'})
+  if p=='/api/password/change':
+   user=self.auth()
+   if not user: return self.sendj(401,{'error':'unauthorized'})
+   current_password=str(data.get('current_password',''))
+   new_password=str(data.get('new_password',''))
+   confirm_password=str(data.get('confirm_password',''))
+   if len(new_password)<8: return self.sendj(400,{'error':'new_password_must_be_at_least_8_characters'})
+   if new_password!=confirm_password: return self.sendj(400,{'error':'password_confirmation_mismatch'})
+   ok,_=verify_password(current_password,user.get('password_hash') or '')
+   if not ok: return self.sendj(403,{'error':'current_password_invalid'})
+   c=conn()
+   c.execute('UPDATE users SET password_hash=? WHERE id=?',(hash_password(new_password),user['id']))
+   c.execute('DELETE FROM sessions WHERE user_id=?',(user['id'],))
+   c.commit(); c.close()
+   audit(user.get('email','ACCOUNT'),'PASSWORD_CHANGE','USER','all_sessions_revoked')
+   return self.sendj(200,{'ok':True,'status':'password_changed','reauthentication_required':True})
   if p=='/api/password/recover':
    email=str(data.get('email','')).strip().lower()
    if not email or '@' not in email: return self.sendj(400,{'error':'valid_email_required'})
