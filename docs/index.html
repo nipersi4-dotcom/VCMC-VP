@@ -117,7 +117,7 @@ function helpPage(){frame('SUPPORT','Bantuan & dukungan','Saluran dukungan harus
  '<section class="card"><h3>Untuk pertanyaan atau kendala</h3><div class="feed" style="margin-top:10px"><div class="feeditem"><b>1. Jelaskan masalah</b><br><span class="muted">Sebutkan halaman, tindakan, waktu, dan pesan error yang terlihat.</span></div><div class="feeditem"><b>2. Sertakan bukti yang aman</b><br><span class="muted">Gunakan status/error umum; tutupi email pribadi, token, kode aktivasi, dan data sensitif.</span></div><div class="feeditem"><b>3. Status sistem</b><br><span class="muted">Periksa halaman System. Health OK tidak membuktikan semua API, permission, atau fitur sudah lulus.</span></div></div><div class="actions"><button class="btn primary" onclick="go(\'system\')">Periksa System</button><button class="btn" onclick="copyDiagnostics()">Salin ringkasan teknis</button></div><div id="help-result" class="small" style="margin-top:10px"></div></section>')}
 async function copyDiagnostics(){const text='VCMC-VP diagnostic\\nFrontend: active\\nBackend URL configured: '+(!!apiBase)+'\\nSession present: '+(!!token)+'\\nREAL_MONEY: disabled by frontend boundary\\nPlease do not include passwords, session tokens, or private case data.';try{await navigator.clipboard.writeText(text);setMessage('help-result','Ringkasan aman disalin.',true)}catch(e){setMessage('help-result',text,true)}}
 async function systemCheck(){if(!apiBase)return;try{const d=await api('/health');const s=document.getElementById('api-state');if(s){s.textContent='HEALTH OK';s.className='pill teal'}}catch(_){}}
-go('home');
+if(location.search.indexOf('verify=')>=0)verifyEmailPage();else go('home');
 </script>
 </body>
 </html>
