@@ -1,0 +1,30 @@
+name: Publish VCMC-VP to Hugging Face Space
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: vcmc-vp-hf-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout approved main source
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Install Hugging Face CLI
+        run: |
+          curl -LsSf https://hf.co/cli/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Publish to the configured Space using short-lived OIDC
+        env:
+          HF_OIDC_RESOURCE: spaces/VCMC-PUSAT/VCMC-VP
+        run: |
+          hf upload spaces/VCMC-PUSAT/VCMC-VP . . --commit-message "VCMC-VP GitHub main $GITHUB_SHA"
