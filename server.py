@@ -4,7 +4,7 @@ from urllib.parse import urlparse, urlencode, parse_qs
 from datetime import datetime, timezone
 from html import escape as html_escape
 DB=os.getenv('VCMC_DB','vcmp.db'); HOST=os.getenv('HOST','0.0.0.0'); PORT=int(os.getenv('PORT','10000'))
-ADMIN_EMAIL=os.getenv('VCMC_ADMIN_EMAIL',''); ADMIN_PASSWORD=os.getenv('VCMC_ADMIN_PASSWORD',''); PUBLIC_BASE_URL=os.getenv('PUBLIC_BASE_URL','https://nipersi4-dotcom.github.io/VCMC-VP/').rstrip('/')
+ADMIN_EMAIL=os.getenv('VCMC_ADMIN_EMAIL',''); ADMIN_PASSWORD=os.getenv('VCMC_ADMIN_PASSWORD',''); PUBLIC_BASE_URL=os.getenv('PUBLIC_BASE_URL','').strip().rstrip('/')
 RESEND_API_KEY=os.getenv('RESEND_API_KEY','').strip(); RESEND_FROM_EMAIL=os.getenv('RESEND_FROM_EMAIL','').strip()
 HF_OAUTH_STATES={}
 REAL_MONEY=os.getenv('VCMC_REAL_MONEY_ENABLED','false').lower()=='true'; BACKUP_DIR=os.getenv('VCMC_BACKUP_DIR','backups')
@@ -133,8 +133,9 @@ class H(BaseHTTPRequestHandler):
   c.close(); return dict(r) if r else None
  def base_url(self):
   if PUBLIC_BASE_URL: return PUBLIC_BASE_URL
-  proto=self.headers.get('X-Forwarded-Proto','').split(',')[0].strip() or ('https' if self.headers.get('Host','').endswith('.rollout.click') else 'http')
   host=self.headers.get('X-Forwarded-Host','').split(',')[0].strip() or self.headers.get('Host','localhost')
+  proto=self.headers.get('X-Forwarded-Proto','').split(',')[0].strip()
+  if not proto: proto='http' if host.startswith(('localhost','127.0.0.1')) else 'https'
   return proto+'://'+host
  def send_html(self,code,html,cookie=None):
   b=html.encode(); self.send_response(code); self.send_header('Content-Type','text/html; charset=utf-8'); self.send_header('Content-Length',str(len(b))); self.send_header('Cache-Control','no-store')
