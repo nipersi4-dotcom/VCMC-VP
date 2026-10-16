@@ -42,6 +42,9 @@ def init():
   c.execute('INSERT INTO users(email,login_id,password_hash,role,status,name) VALUES(?,?,?,?,?,?)',(ADMIN_EMAIL,'SOVEREIGN',hash_password(ADMIN_PASSWORD),'SOVEREIGN','CREATOR','VCMC Sovereign'))
  else:
   if not admin['login_id']: c.execute('UPDATE users SET login_id=? WHERE id=?',('SOVEREIGN',admin['id']))
+  # Keep the configured environment password authoritative for the existing sovereign account.
+  # This repairs stale SQLite password hashes after an admin password is changed in hosting settings.
+  if admin['role']=='SOVEREIGN': c.execute('UPDATE users SET password_hash=? WHERE id=?',(hash_password(ADMIN_PASSWORD),admin['id']))
  for row in [('DEST-001','MODAL_PENGEMBANGAN','CAPITAL'),('DEST-002','AMAL_ZAKAT_RESERVE','AMAL_ZAKAT_RESERVE'),('DEST-003','HAK_CIPTA_IP','IP')]: c.execute('INSERT OR IGNORE INTO destinations VALUES(?,?,?,1)',row)
  c.execute("INSERT OR IGNORE INTO providers VALUES('PJP-SIM-001','Simulation Provider',0)")
  c.commit(); c.close()
