@@ -32,8 +32,9 @@
 'use strict';
 const API_KEY='vcmc_api_base_v2';
 const TOKEN_KEY='vcmc_session_token';
-const DEFAULT_API_BASE='https://vcmc-vp-239b.rollout.click';
-const BACKEND_FALLBACKS=['https://vcmc-vp-239b.rollout.click'];
+const LEGACY_BACKEND='https://vcmc-vp-239b.rollout.click';
+const DEFAULT_API_BASE='https://vcmc-vp.vcmc.blitz.cloud';
+const BACKEND_FALLBACKS=['https://vcmc-vp.vcmc.blitz.cloud'];
 const rooms=[
 {id:'architecture',name:'Architecture',desc:'Identity, foundation & governance',state:'available',purpose:'TAQDA → VCMC → Real Development → Real Benefit → Global Scale',route:'Read-only architecture and governance boundary.'},
 {id:'network',name:'Global Network',desc:'Global / cross-border interaction',state:'next stage',purpose:'Identify → Screen → Classify → Route → Authorize → Interact → Evidence → Reconcile',api:'/api/network'},
@@ -49,7 +50,7 @@ const rooms=[
 {id:'system',name:'System & Operations',desc:'Readiness, metrics & controls',state:'functional boundary',purpose:'Check runtime, API, database and real-money gate separately.',api:'/api/system/readiness'},
 {id:'payment',name:'Payment / Providers',desc:'Instruction layer; no real-money execution',state:'simulation',purpose:'Payment instruction only. PJP execution and real-money operation remain disabled.'}
 ];
-let page='home',token=sessionStorage.getItem(TOKEN_KEY)||'',identity=null,apiBase=localStorage.getItem(API_KEY)||DEFAULT_API_BASE;
+let page='home',token=sessionStorage.getItem(TOKEN_KEY)||'',identity=null,apiBase=(()=>{const saved=localStorage.getItem(API_KEY);if(!saved||saved.replace(/\/+$/,'')===LEGACY_BACKEND){localStorage.setItem(API_KEY,DEFAULT_API_BASE);return DEFAULT_API_BASE}return saved})();
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function money(v){return new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(Number(v||0))}
 function setMessage(id,msg,good=false){const el=document.getElementById(id);if(el){el.textContent=msg;el.className=good?'goodtext small':'badtext small'}}
