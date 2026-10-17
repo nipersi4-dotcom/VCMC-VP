@@ -49,14 +49,12 @@ jobs:
                       print(f"LIVE_PROBE {url} STATUS={response.status} BODY={body[:500]}")
                       if response.status != 200:
                           failures.append(f"{path}: HTTP {response.status}")
-                      if path == "/health":
+                      if path in ("/health", "/api/system/readiness"):
                           data = json.loads(body)
                           if data.get("real_money_enabled") is not False:
-                              failures.append("/health: real money is not explicitly OFF")
-                      if path == "/api/system/readiness":
-                          data = json.loads(body)
-                          if data.get("real_money_enabled") is not False:
-                              failures.append("/api/system/readiness: real money is not explicitly OFF")
+                              failures.append(f"{path}: real money is not explicitly OFF")
+                          if data.get("registration_mode") not in ("email_verification", "public_unverified_fallback"):
+                              failures.append(f"{path}: deployed backend lacks the current registration-mode marker")
               except Exception as error:
                   failures.append(f"{path}: {type(error).__name__}: {error}")
                   print(f"LIVE_PROBE {url} ERROR={type(error).__name__}: {error}")
