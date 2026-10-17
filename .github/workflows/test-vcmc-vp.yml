@@ -34,25 +34,33 @@ jobs:
       - name: Run public registration and email verification contract tests
         run: python test_registration_flow.py
 
-      - name: Probe deployed VCMC backend entry points
-        continue-on-error: true
+      - name: Verify live Blitz backend health, public registration surface, and readiness
         run: |
           python - <<'PY'
-          import urllib.request, urllib.error
-          hosts = [
-              "https://vcmc-vp.vcmc.blitz.cloud",
-          ]
-          for host in hosts:
-              for path in ("/health", "/api/public/presence", "/api/system/readiness"):
-                  url = host + path
-                  try:
-                      req = urllib.request.Request(url, headers={"User-Agent": "VCMC-VP-live-probe/1.0"})
-                      with urllib.request.urlopen(req, timeout=12) as response:
-                          body = response.read(500).decode("utf-8", "replace").replace("\\n", " ")
-                          print(f"LIVE_PROBE {url} STATUS={response.status} BODY={body[:220]}")
-                  except urllib.error.HTTPError as error:
-                      body = error.read(500).decode("utf-8", "replace").replace("\\n", " ")
-                      print(f"LIVE_PROBE {url} STATUS={error.code} BODY={body[:220]}")
-                  except Exception as error:
-                      print(f"LIVE_PROBE {url} ERROR={type(error).__name__}: {error}")
+          import json, urllib.request, urllib.error
+          host = "https://vcmc-vp.vcmc.blitz.cloud"
+          failures = []
+          for path in ("/health", "/api/public/presence", "/api/system/readiness"):
+              url = host + path
+              try:
+                  req = urllib.request.Request(url, headers={"User-Agent": "VCMC-VP-live-probe/1.0"})
+                  with urllib.request.urlopen(req, timeout=15) as response:
+                      body = response.read(2000).decode("utf-8", "replace").replace("\\n", " ")
+                      print(f"LIVE_PROBE {url} STATUS={response.status} BODY={body[:500]}")
+                      if response.status != 200:
+                          failures.append(f"{path}: HTTP {response.status}")
+                      if path == "/health":
+                          data = json.loads(body)
+                          if data.get("real_money_enabled") is not False:
+                              failures.append("/health: real money is not explicitly OFF")
+                      if path == "/api/system/readiness":
+                          data = json.loads(body)
+                          if data.get("real_money_enabled") is not False:
+                              failures.append("/api/system/readiness: real money is not explicitly OFF")
+              except Exception as error:
+                  failures.append(f"{path}: {type(error).__name__}: {error}")
+                  print(f"LIVE_PROBE {url} ERROR={type(error).__name__}: {error}")
+          if failures:
+              raise SystemExit("BLITZ_BACKEND_PROBE_FAILED: " + " | ".join(failures))
+          print("BLITZ_BACKEND_LIVE_PROBE: PASS") 
           PY
