@@ -1,4 +1,5 @@
-import os, json, sqlite3, hashlib, secrets, shutil, time, base64, urllib.request, urllib.error
+import os, json, sqlite3, hashlib, secrets, shutil, time, base64, urllib.request, urllib.error, smtplib, ssl
+from email.message import EmailMessage
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, urlencode, parse_qs
 from datetime import datetime, timezone
@@ -6,6 +7,7 @@ from html import escape as html_escape
 DB=os.getenv('VCMC_DB','vcmp.db'); HOST=os.getenv('HOST','0.0.0.0'); PORT=int(os.getenv('PORT','10000'))
 ADMIN_EMAIL=os.getenv('VCMC_ADMIN_EMAIL',''); ADMIN_PASSWORD=os.getenv('VCMC_ADMIN_PASSWORD',''); PUBLIC_BASE_URL=os.getenv('PUBLIC_BASE_URL','').strip().rstrip('/')
 RESEND_API_KEY=os.getenv('RESEND_API_KEY','').strip(); RESEND_FROM_EMAIL=os.getenv('RESEND_FROM_EMAIL','').strip()
+SMTP_HOST=os.getenv('VCMC_SMTP_HOST','').strip(); SMTP_PORT=int(os.getenv('VCMC_SMTP_PORT','587')); SMTP_USER=os.getenv('VCMC_SMTP_USER','').strip(); SMTP_PASSWORD=os.getenv('VCMC_SMTP_PASSWORD',''); SMTP_FROM_EMAIL=os.getenv('VCMC_SMTP_FROM_EMAIL','').strip()
 HF_OAUTH_STATES={}
 REAL_MONEY=os.getenv('VCMC_REAL_MONEY_ENABLED','false').lower()=='true'; BACKUP_DIR=os.getenv('VCMC_BACKUP_DIR','backups')
 RULE_ID='VCMC-ALLOC-001'; RULE_VERSION='1.0.0'; FORMULA_VERSION='1.0.0'
@@ -64,19 +66,39 @@ def external_role(status):
 def hash_password(password):
  salt=secrets.token_bytes(16); iterations=310000; digest=hashlib.pbkdf2_hmac('sha256',password.encode(),salt,iterations,32)
  return 'pbkdf2$sha256$'+str(iterations)+'$'+base64.urlsafe_b64encode(salt).decode().rstrip('=')+'$'+digest.hex()
+def email_sender_configured():
+ return bool((RESEND_API_KEY and RESEND_FROM_EMAIL) or (SMTP_HOST and SMTP_USER and SMTP_PASSWORD and (SMTP_FROM_EMAIL or SMTP_USER)))
 def send_verification_email(email,token,base_url=None):
- if not RESEND_API_KEY or not RESEND_FROM_EMAIL: return False,'email_provider_not_configured'
+ if not email_sender_configured(): return False,'email_provider_not_configured'
  link=(PUBLIC_BASE_URL or base_url or '').rstrip('/')+'/?verify='+token
- payload={'from':RESEND_FROM_EMAIL,'to':[email],'subject':'Verifikasi email untuk VCMC-VP','html':'<div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033;max-width:560px;margin:auto"><h2>Verifikasi email VCMC-VP</h2><p>Konfirmasikan bahwa kamu memiliki akses ke alamat email ini untuk menyelesaikan pendaftaran VCMC-VP.</p><p><a href="'+html_escape(link,quote=True)+'" style="display:inline-block;padding:12px 18px;background:#c9a45c;color:#07111f;text-decoration:none;border-radius:6px;font-weight:bold">Verifikasi email</a></p><p>Link berlaku selama 30 menit dan hanya dapat digunakan sekali. Jika kamu tidak meminta pendaftaran, abaikan email ini.</p><p>Pendaftaran hanya membuat identitas publik. Ini bukan persetujuan Partner, kewenangan, atau akses ke seluruh Case.</p></div>'}
- req=urllib.request.Request('https://api.resend.com/emails',data=json.dumps(payload).encode(),headers={'Authorization':'Bearer '+RESEND_API_KEY,'Content-Type':'application/json'},method='POST')
+ subject='Verifikasi email untuk VCMC-VP'
+ html='<div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033;max-width:560px;margin:auto"><h2>Verifikasi email VCMC-VP</h2><p>Konfirmasikan bahwa kamu memiliki akses ke alamat email ini untuk menyelesaikan pendaftaran VCMC-VP.</p><p><a href="'+html_escape(link,quote=True)+'" style="display:inline-block;padding:12px 18px;background:#c9a45c;color:#07111f;text-decoration:none;border-radius:6px;font-weight:bold">Verifikasi email</a></p><p>Link berlaku selama 30 menit dan hanya dapat digunakan sekali. Jika kamu tidak meminta pendaftaran, abaikan email ini.</p><p>Pendaftaran hanya membuat identitas publik. Ini bukan persetujuan Partner, kewenangan, atau akses ke seluruh Case.</p></div>'
+ if RESEND_API_KEY and RESEND_FROM_EMAIL:
+  payload={'from':RESEND_FROM_EMAIL,'to':[email],'subject':subject,'html':html}
+  req=urllib.request.Request('https://api.resend.com/emails',data=json.dumps(payload).encode(),headers={'Authorization':'Bearer '+RESEND_API_KEY,'Content-Type':'application/json'},method='POST')
+  try:
+   with urllib.request.urlopen(req,timeout=12) as response:
+    result=json.loads(response.read().decode() or '{}')
+    return response.status in (200,201),result.get('id','email_sent')
+  except urllib.error.HTTPError as e:
+   try: detail=json.loads(e.read().decode()).get('message','email_provider_error')
+   except Exception: detail='email_provider_error'
+   return False,detail
+  except Exception:
+   return False,'email_delivery_unavailable'
  try:
-  with urllib.request.urlopen(req,timeout=12) as response:
-   result=json.loads(response.read().decode() or '{}')
-   return response.status in (200,201),result.get('id','email_sent')
- except urllib.error.HTTPError as e:
-  try: detail=json.loads(e.read().decode()).get('message','email_provider_error')
-  except Exception: detail='email_provider_error'
-  return False,detail
+  msg=EmailMessage(); msg['Subject']=subject; msg['From']=SMTP_FROM_EMAIL or SMTP_USER; msg['To']=email
+  msg.set_content('Verifikasi email VCMC-VP. Buka tautan ini dalam 30 menit: '+link+'\\n\\nPendaftaran tidak otomatis memberi status Partner, kewenangan, atau akses ke semua Case.')
+  msg.add_alternative(html,subtype='html')
+  context=ssl.create_default_context()
+  if SMTP_PORT==465:
+   with smtplib.SMTP_SSL(SMTP_HOST,SMTP_PORT,context=context,timeout=15) as server:
+    server.login(SMTP_USER,SMTP_PASSWORD); server.send_message(msg)
+  else:
+   with smtplib.SMTP(SMTP_HOST,SMTP_PORT,timeout=15) as server:
+    server.ehlo(); server.starttls(context=context); server.ehlo()
+    server.login(SMTP_USER,SMTP_PASSWORD); server.send_message(msg)
+  return True,'email_sent'
  except Exception:
   return False,'email_delivery_unavailable'
 def verify_password(password,stored):
@@ -403,16 +425,15 @@ class H(BaseHTTPRequestHandler):
    if not name or len(name)>120 or not email or len(email)>254 or '@' not in email or email.startswith('@') or email.endswith('@'): return self.sendj(400,{'error':'name_and_valid_email_required'})
    if len(password)<8 or len(password)>256: return self.sendj(400,{'error':'password_min_8_chars'})
    if data.get('accept_terms') not in ('on',True,'true','1'): return self.sendj(400,{'error':'terms_acknowledgement_required','message':'Konfirmasi syarat pendaftaran terlebih dahulu.'})
-   if not RESEND_API_KEY or not RESEND_FROM_EMAIL:
+   if not email_sender_configured():
     c=conn()
     if c.execute('SELECT 1 FROM users WHERE email=?',(email,)).fetchone():
-     c.close(); return self.sendj(200,{'ok':True,'status':'verification_if_available','message':'Jika alamat email dapat digunakan, periksa instruksi yang tersedia. Jika sudah memiliki akun, silakan masuk.'})
-    login_id='CAND-'+secrets.token_hex(5).upper()
-    c.execute('INSERT INTO users(email,login_id,password_hash,role,status,name,email_verified) VALUES(?,?,?,?,?,?,0)',(email,login_id,hash_password(password),'PUBLIC','PUBLIC',name))
-    c.commit(); c.close(); audit('PUBLIC','UNVERIFIED_PUBLIC_ACCOUNT_CREATED',hashlib.sha256(email.encode()).hexdigest()[:16],'email provider not configured')
-    return self.sendj(201,{'ok':True,'status':'public_unverified','email_verified':False,'login_id':login_id,'message':'Akun publik dibuat. Email belum terverifikasi; login hanya diizinkan dalam konteks Public sampai kanal verifikasi tersedia. Ini bukan status Partner atau pemberian kewenangan.'})
+     c.close(); return self.sendj(503,{'error':'email_provider_not_configured','message':'Kanal email verifikasi belum dikonfigurasi. Tidak ada email terkirim; akun lama tidak diubah.'})
+    c.close(); return self.sendj(503,{'error':'email_provider_not_configured','message':'Kanal email verifikasi belum dikonfigurasi. Tidak ada akun baru yang dibuat.'})
    c=conn()
-   if c.execute('SELECT 1 FROM users WHERE email=?',(email,)).fetchone(): c.close(); return self.sendj(200,{'ok':True,'status':'verification_if_available','message':'Jika alamat email dapat digunakan, instruksi verifikasi akan dikirim. Periksa kotak masuk dan spam.'})
+   existing=c.execute('SELECT id,email_verified FROM users WHERE email=?',(email,)).fetchone()
+   if existing and existing['email_verified']:
+    c.close(); return self.sendj(409,{'error':'account_exists','message':'Email ini sudah terverifikasi. Silakan masuk.'})
    login_id='CAND-'+secrets.token_hex(5).upper(); token_value=secrets.token_urlsafe(32); token_hash=hashlib.sha256(token_value.encode()).hexdigest()
    c.execute('DELETE FROM pending_registrations WHERE email=? OR expires<?',(email,time.time()))
    c.execute('INSERT INTO pending_registrations(email,login_id,password_hash,name,context,token_hash,expires,created_at) VALUES(?,?,?,?,?,?,?,?)',(email,login_id,hash_password(password),name,context,token_hash,time.time()+1800,now())); c.commit(); c.close()
@@ -427,10 +448,14 @@ class H(BaseHTTPRequestHandler):
    if not token_value: return self.sendj(400,{'error':'verification_token_required'})
    token_hash=hashlib.sha256(token_value.encode()).hexdigest(); c=conn(); row=c.execute('SELECT * FROM pending_registrations WHERE token_hash=? AND expires>?',(token_hash,time.time())).fetchone()
    if not row: c.close(); return self.sendj(400,{'error':'verification_link_invalid_or_expired','message':'Link verifikasi tidak valid atau sudah kedaluwarsa. Silakan daftar kembali.'})
-   if c.execute('SELECT 1 FROM users WHERE email=?',(row['email'],)).fetchone():
-    c.execute('DELETE FROM pending_registrations WHERE email=?',(row['email'],)); c.commit(); c.close(); return self.sendj(409,{'error':'account_exists','message':'Akun dengan email ini sudah ada. Silakan login.'})
-   c.execute('INSERT INTO users(email,login_id,password_hash,role,status,name,email_verified) VALUES(?,?,?,?,?,?,1)',(row['email'],row['login_id'],row['password_hash'],'PUBLIC','PUBLIC',row['name']))
-   uid=c.execute('SELECT id FROM users WHERE email=?',(row['email'],)).fetchone()['id']; tok=secrets.token_urlsafe(32)
+   existing=c.execute('SELECT id FROM users WHERE email=?',(row['email'],)).fetchone()
+   if existing:
+    c.execute("UPDATE users SET login_id=?,password_hash=?,name=?,email_verified=1 WHERE id=?",(row['login_id'],row['password_hash'],row['name'],existing['id']))
+    uid=existing['id']
+   else:
+    c.execute('INSERT INTO users(email,login_id,password_hash,role,status,name,email_verified) VALUES(?,?,?,?,?,?,1)',(row['email'],row['login_id'],row['password_hash'],'PUBLIC','PUBLIC',row['name']))
+    uid=c.execute('SELECT id FROM users WHERE email=?',(row['email'],)).fetchone()['id']
+   tok=secrets.token_urlsafe(32)
    c.execute('INSERT INTO sessions(token,user_id,expires,context) VALUES(?,?,?,?)',(tok,uid,time.time()+86400,row['context']))
    c.execute('DELETE FROM pending_registrations WHERE email=?',(row['email'],)); c.commit(); c.close(); audit('PUBLIC','EMAIL_VERIFIED','USER',hashlib.sha256(row['email'].encode()).hexdigest()[:16])
    return self.sendj(200,{'token':tok,'role':'PUBLIC','status':'PUBLIC','email':row['email'],'login_id':row['login_id'],'name':row['name'],'context':row['context'],'email_verified':True})
