@@ -72,6 +72,7 @@ def send_verification_email(email,token,base_url=None):
  if not email_sender_configured(): return False,'email_provider_not_configured'
  link=(PUBLIC_BASE_URL or base_url or '').rstrip('/')+'/?verify='+token
  subject='Verifikasi email untuk VCMC-VP'
+ recipient_tag=hashlib.sha256(email.strip().lower().encode()).hexdigest()[:12]
  html='<div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033;max-width:560px;margin:auto"><h2>Verifikasi email VCMC-VP</h2><p>Konfirmasikan bahwa kamu memiliki akses ke alamat email ini untuk menyelesaikan pendaftaran VCMC-VP.</p><p><a href="'+html_escape(link,quote=True)+'" style="display:inline-block;padding:12px 18px;background:#c9a45c;color:#07111f;text-decoration:none;border-radius:6px;font-weight:bold">Verifikasi email</a></p><p>Link berlaku selama 30 menit dan hanya dapat digunakan sekali. Jika kamu tidak meminta pendaftaran, abaikan email ini.</p><p>Pendaftaran hanya membuat identitas publik. Ini bukan persetujuan Partner, kewenangan, atau akses ke seluruh Case.</p></div>'
  if RESEND_API_KEY and RESEND_FROM_EMAIL:
   payload={'from':RESEND_FROM_EMAIL,'to':[email],'subject':subject,'html':html}
@@ -79,12 +80,16 @@ def send_verification_email(email,token,base_url=None):
   try:
    with urllib.request.urlopen(req,timeout=12) as response:
     result=json.loads(response.read().decode() or '{}')
-    return response.status in (200,201),result.get('id','email_sent')
+    if response.status<300 and result.get('id'):
+     print('VCMC_EMAIL provider=resend event=accepted recipient_tag='+recipient_tag+' message_id='+str(result.get('id',''))[:80],flush=True)
+     return True,'email_sent'
+    print('VCMC_EMAIL provider=resend event=rejected recipient_tag='+recipient_tag+' status='+str(response.status),flush=True)
+    return False,'email_provider_error'
   except urllib.error.HTTPError as e:
-   try: detail=json.loads(e.read().decode()).get('message','email_provider_error')
-   except Exception: detail='email_provider_error'
-   return False,detail
-  except Exception:
+   print('VCMC_EMAIL provider=resend event=http_error recipient_tag='+recipient_tag+' status='+str(e.code),flush=True)
+   return False,'email_provider_http_'+str(e.code)
+  except Exception as e:
+   print('VCMC_EMAIL provider=resend event=error recipient_tag='+recipient_tag+' error_type='+type(e).__name__,flush=True)
    return False,'email_delivery_unavailable'
  try:
   msg=EmailMessage(); msg['Subject']=subject; msg['From']=SMTP_FROM_EMAIL or SMTP_USER; msg['To']=email
@@ -98,8 +103,10 @@ def send_verification_email(email,token,base_url=None):
    with smtplib.SMTP(SMTP_HOST,SMTP_PORT,timeout=15) as server:
     server.ehlo(); server.starttls(context=context); server.ehlo()
     server.login(SMTP_USER,SMTP_PASSWORD); server.send_message(msg)
+  print('VCMC_EMAIL provider=smtp event=accepted recipient_tag='+recipient_tag+' host='+SMTP_HOST+' port='+str(SMTP_PORT),flush=True)
   return True,'email_sent'
- except Exception:
+ except Exception as e:
+  print('VCMC_EMAIL provider=smtp event=error recipient_tag='+recipient_tag+' host='+SMTP_HOST+' port='+str(SMTP_PORT)+' error_type='+type(e).__name__,flush=True)
   return False,'email_delivery_unavailable'
 def verify_password(password,stored):
  if not stored: return False,False
