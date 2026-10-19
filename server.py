@@ -13,7 +13,6 @@ def now(): return datetime.now(timezone.utc).isoformat()
 def conn():
  c=sqlite3.connect(DB,check_same_thread=False); c.row_factory=sqlite3.Row; return c
 def init():
- if not ADMIN_EMAIL or not ADMIN_PASSWORD: raise RuntimeError('VCMC_ADMIN_EMAIL and VCMC_ADMIN_PASSWORD must be set')
  c=conn(); c.executescript('''CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY,email TEXT UNIQUE,login_id TEXT UNIQUE,password_hash TEXT,role TEXT,status TEXT DEFAULT 'PUBLIC',name TEXT,language TEXT DEFAULT 'id',oauth_provider TEXT,oauth_sub TEXT); CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id INTEGER,expires REAL,context TEXT DEFAULT 'PUBLIC'); CREATE TABLE IF NOT EXISTS cases(id TEXT PRIMARY KEY,request_id TEXT UNIQUE,state TEXT,gross INTEGER,created_at TEXT); CREATE TABLE IF NOT EXISTS case_events(id INTEGER PRIMARY KEY,case_id TEXT,state TEXT,at TEXT,actor TEXT); CREATE TABLE IF NOT EXISTS payment_instructions(id INTEGER PRIMARY KEY,case_id TEXT,provider_id TEXT,status TEXT,created_at TEXT); CREATE TABLE IF NOT EXISTS ledger(id INTEGER PRIMARY KEY,case_id TEXT,amount INTEGER,kind TEXT,created_at TEXT); CREATE TABLE IF NOT EXISTS allocations(id INTEGER PRIMARY KEY,case_id TEXT,dest TEXT,amount INTEGER,kind TEXT); CREATE TABLE IF NOT EXISTS destinations(id TEXT PRIMARY KEY,label TEXT,kind TEXT,active INTEGER); CREATE TABLE IF NOT EXISTS evidence(id INTEGER PRIMARY KEY,case_id TEXT,kind TEXT,sha256 TEXT,created_at TEXT); CREATE TABLE IF NOT EXISTS reconciliations(id INTEGER PRIMARY KEY,case_id TEXT,status TEXT,expected INTEGER,executed INTEGER,received INTEGER,ledger INTEGER,created_at TEXT); CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY,at TEXT,actor TEXT,action TEXT,entity TEXT,details TEXT); CREATE TABLE IF NOT EXISTS idempotency(key TEXT PRIMARY KEY,response TEXT,created_at TEXT); CREATE TABLE IF NOT EXISTS backups(id INTEGER PRIMARY KEY,path TEXT,sha256 TEXT,created_at TEXT); CREATE TABLE IF NOT EXISTS providers(id TEXT PRIMARY KEY,name TEXT,execution_verified INTEGER); CREATE TABLE IF NOT EXISTS partners(id TEXT PRIMARY KEY,name TEXT NOT NULL,kind TEXT NOT NULL,status TEXT NOT NULL,contact TEXT,created_at TEXT,updated_at TEXT); CREATE TABLE IF NOT EXISTS pilots(id TEXT PRIMARY KEY,name TEXT NOT NULL,partner_id TEXT,status TEXT NOT NULL,objective TEXT,created_at TEXT,updated_at TEXT); CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY,name TEXT NOT NULL,kind TEXT NOT NULL,status TEXT NOT NULL,pilot_id TEXT,created_at TEXT,updated_at TEXT); CREATE TABLE IF NOT EXISTS directions(id TEXT PRIMARY KEY,name TEXT NOT NULL,priority TEXT NOT NULL,status TEXT NOT NULL,created_at TEXT,updated_at TEXT); CREATE TABLE IF NOT EXISTS capital_plans(id TEXT PRIMARY KEY,name TEXT NOT NULL,purpose TEXT NOT NULL,status TEXT NOT NULL,amount INTEGER NOT NULL,created_at TEXT,updated_at TEXT); CREATE TABLE IF NOT EXISTS partner_access_requests(id TEXT PRIMARY KEY,request_type TEXT NOT NULL,name TEXT NOT NULL,organization TEXT,country TEXT,contact_type TEXT,contact_value TEXT,language TEXT NOT NULL,message TEXT,status TEXT NOT NULL,created_at TEXT,updated_at TEXT); CREATE TABLE IF NOT EXISTS access_activations(code TEXT PRIMARY KEY,request_id TEXT NOT NULL,email TEXT NOT NULL,role TEXT NOT NULL,expires REAL NOT NULL,used INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS password_resets(token_hash TEXT PRIMARY KEY,user_id INTEGER NOT NULL,expires REAL NOT NULL,used INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL);''')
  try: c.execute('ALTER TABLE users ADD COLUMN login_id TEXT')
  except sqlite3.OperationalError: pass
@@ -36,15 +35,19 @@ def init():
  try: c.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'PUBLIC'")
  except sqlite3.OperationalError: pass
  c.execute("UPDATE users SET status='CREATOR' WHERE role='SOVEREIGN' AND (status IS NULL OR status='PUBLIC')")
- c.execute("UPDATE users SET name='VCMC Sovereign' WHERE email=? AND (name IS NULL OR name='')",(ADMIN_EMAIL,))
- admin=c.execute('SELECT * FROM users WHERE email=?',(ADMIN_EMAIL,)).fetchone()
- if not admin:
-  c.execute('INSERT INTO users(email,login_id,password_hash,role,status,name) VALUES(?,?,?,?,?,?)',(ADMIN_EMAIL,'SOVEREIGN',hash_password(ADMIN_PASSWORD),'SOVEREIGN','CREATOR','VCMC Sovereign'))
- else:
-  if not admin['login_id']: c.execute('UPDATE users SET login_id=? WHERE id=?',('SOVEREIGN',admin['id']))
-  # Keep the configured environment password authoritative for the existing sovereign account.
-  # This repairs stale SQLite password hashes after an admin password is changed in hosting settings.
-  if admin['role']=='SOVEREIGN': c.execute('UPDATE users SET password_hash=? WHERE id=?',(hash_password(ADMIN_PASSWORD),admin['id']))
+ # Public gateway can start without an administrator secret. In that state no
+ # sovereign account is created and privileged routes remain unavailable.
+ # Never invent a default administrator credential.
+ if ADMIN_EMAIL and ADMIN_PASSWORD:
+  c.execute("UPDATE users SET name='VCMC Sovereign' WHERE email=? AND (name IS NULL OR name='')",(ADMIN_EMAIL,))
+  admin=c.execute('SELECT * FROM users WHERE email=?',(ADMIN_EMAIL,)).fetchone()
+  if not admin:
+   c.execute('INSERT INTO users(email,login_id,password_hash,role,status,name) VALUES(?,?,?,?,?,?)',(ADMIN_EMAIL,'SOVEREIGN',hash_password(ADMIN_PASSWORD),'SOVEREIGN','CREATOR','VCMC Sovereign'))
+  else:
+   if not admin['login_id']: c.execute('UPDATE users SET login_id=? WHERE id=?',('SOVEREIGN',admin['id']))
+   # Keep the configured environment password authoritative for the existing sovereign account.
+   # This repairs stale SQLite password hashes after an admin password is changed in hosting settings.
+   if admin['role']=='SOVEREIGN': c.execute('UPDATE users SET password_hash=? WHERE id=?',(hash_password(ADMIN_PASSWORD),admin['id']))
  for row in [('DEST-001','MODAL_PENGEMBANGAN','CAPITAL'),('DEST-002','AMAL_ZAKAT_RESERVE','AMAL_ZAKAT_RESERVE'),('DEST-003','HAK_CIPTA_IP','IP')]: c.execute('INSERT OR IGNORE INTO destinations VALUES(?,?,?,1)',row)
  c.execute("INSERT OR IGNORE INTO providers VALUES('PJP-SIM-001','Simulation Provider',0)")
  c.commit(); c.close()
@@ -199,9 +202,9 @@ class H(BaseHTTPRequestHandler):
 
 <script src="/app.js" defer></script></body></html>'''
    b=html.encode(); self.send_response(200); self.send_header('Content-Type','text/html; charset=utf-8'); self.send_header('Content-Length',str(len(b))); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(b); return
-  if p=='/health': return self.sendj(200,{'status':'ok','machine':'VCMC-VP','real_money_enabled':REAL_MONEY,'registration_mode':'email_verification' if RESEND_API_KEY and RESEND_FROM_EMAIL else 'public_unverified_fallback'})
+  if p=='/health': return self.sendj(200,{'status':'ok','machine':'VCMC-VP','real_money_enabled':REAL_MONEY,'admin_configured':bool(ADMIN_EMAIL and ADMIN_PASSWORD),'registration_mode':'email_verification' if RESEND_API_KEY and RESEND_FROM_EMAIL else 'public_unverified_fallback'})
   if p=='/api/system/readiness':
-   c=conn(); provider=bool(c.execute('SELECT 1 FROM providers WHERE execution_verified=1').fetchone()); c.close(); return self.sendj(200,{'ready':not REAL_MONEY,'database':True,'public':True,'real_money':REAL_MONEY,'real_money_enabled':REAL_MONEY,'real_pjp_execution_verified':provider,'registration_mode':'email_verification' if RESEND_API_KEY and RESEND_FROM_EMAIL else 'public_unverified_fallback','rule_id':RULE_ID,'rule_version':RULE_VERSION,'formula_version':FORMULA_VERSION})
+   c=conn(); provider=bool(c.execute('SELECT 1 FROM providers WHERE execution_verified=1').fetchone()); c.close(); return self.sendj(200,{'ready':(not REAL_MONEY and bool(ADMIN_EMAIL and ADMIN_PASSWORD)),'admin_configured':bool(ADMIN_EMAIL and ADMIN_PASSWORD),'database':True,'public':True,'real_money':REAL_MONEY,'real_money_enabled':REAL_MONEY,'real_pjp_execution_verified':provider,'registration_mode':'email_verification' if RESEND_API_KEY and RESEND_FROM_EMAIL else 'public_unverified_fallback','rule_id':RULE_ID,'rule_version':RULE_VERSION,'formula_version':FORMULA_VERSION})
   if p=='/api/rule': return self.sendj(200,{'rule_id':RULE_ID,'version':RULE_VERSION,'formula_version':FORMULA_VERSION})
   if p=='/api/public/presence':
    c=conn(); active=c.execute('SELECT COUNT(*) FROM sessions WHERE expires>?',(time.time(),)).fetchone()[0]; users=c.execute('SELECT COUNT(*) FROM users').fetchone()[0]; partners=c.execute("SELECT COUNT(*) FROM partners WHERE status='PARTNER'").fetchone()[0]; projects=c.execute('SELECT COUNT(*) FROM projects').fetchone()[0]; c.close(); return self.sendj(200,{'live_now':active,'registered_users':users,'partners':partners,'projects':projects,'privacy':'aggregate_only','identities_exposed':False})
