@@ -223,10 +223,10 @@ class H(BaseHTTPRequestHandler):
   tok2=secrets.token_urlsafe(32); c.execute('INSERT INTO sessions(token,user_id,expires,context) VALUES(?,?,?,?)',(tok2,u['id'],time.time()+86400,'PUBLIC')); c.commit(); c.close()
   audit(u['email'],'LOGIN_HUGGINGFACE','USER',username or sub)
   self.send_response(303); self.send_header('Set-Cookie','vcmc_token='+tok2+'; Path=/; HttpOnly; Secure; SameSite=Lax'); self.send_header('Location','/'); self.end_headers()
-  if p=='/app.js':
-   body=APP_JS.encode('utf-8'); self.send_response(200); self.send_header('Content-Type','application/javascript; charset=utf-8'); self.send_header('Cache-Control','no-store'); self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body); return
  def do_GET(self):
   p=urlparse(self.path).path
+  if p=='/app.js':
+   body=APP_JS.encode('utf-8'); self.send_response(200); self.send_header('Content-Type','application/javascript; charset=utf-8'); self.send_header('Cache-Control','no-store'); self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body); return
   if p=='/.well-known/oauth-cimd':
    base=self.base_url(); return self.sendj(200,{'client_id':base+'/.well-known/oauth-cimd','client_name':'VCMC-VP','redirect_uris':[base+'/oauth/callback/huggingface'],'token_endpoint_auth_method':'none','client_uri':base})
   if p=='/oauth/login/huggingface': return self.hf_oauth_start()
