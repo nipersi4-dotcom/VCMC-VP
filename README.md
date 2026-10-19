@@ -16,8 +16,8 @@ VCMC-VP is a two-part application: a static public frontend and a separate Pytho
 
 - **Public frontend:** GitHub Pages, served from `docs/index.html`.
 - **Backend source of truth:** this GitHub repository, `server.py`.
-- **Alternative backend host:** Hugging Face Spaces (Docker), prepared through the manually triggered GitHub Actions OIDC publisher workflow.
-- **Additional host option:** Render Web Service from the same repository and Dockerfile.
+- **Current backend target:** DockHosting project `vcmc-vp` at `https://vcmc-vp.dockhosting.dev`. This target is not considered live until `/health` responds successfully.
+- **Alternative backend host:** Hugging Face Spaces (Docker), prepared through the GitHub Actions OIDC publisher workflow; availability depends on the Space's quota and configuration.
 - Host synchronization is not considered live until the deployment workflow succeeds and `/health` plus `/api/system/readiness` are checked on the deployed URL.
 
 ## Public frontend
@@ -31,16 +31,14 @@ VCMC-VP is a two-part application: a static public frontend and a separate Pytho
 
 - Source: `server.py`
 - Runtime: Python standard library + SQLite
-- Required runtime environment variables:
-  - `VCMC_ADMIN_EMAIL`
-  - `VCMC_ADMIN_PASSWORD` (secret; never commit it to the repository)
-  - `VCMC_REAL_MONEY_ENABLED=false`
-- Email verification also requires valid `RESEND_API_KEY` and `RESEND_FROM_EMAIL` values from an approved sender identity.
+- `VCMC_REAL_MONEY_ENABLED=false` must remain set.
+- `VCMC_ADMIN_EMAIL` and `VCMC_ADMIN_PASSWORD` are required to provision the privileged SOVEREIGN account. If absent, the public gateway can start without creating a privileged account; readiness remains `HOLD` and privileged routes are unavailable.
+- Without valid `RESEND_API_KEY` and `RESEND_FROM_EMAIL` values from an approved sender identity, registration uses the restricted public-unverified mode: users can authenticate only in the `PUBLIC` context; this is not email verification, Partner approval, authority, or Case access.
 - Health endpoint: `/health`
 - Readiness endpoint: `/api/system/readiness`
 - Use `PORT` supplied by the host. The Docker image defaults to 7860 for Hugging Face Spaces; Render injects its own `PORT`.
 - CORS is restricted to explicit HTTPS origins. Do not use wildcard origins.
-- SQLite is local-file storage. A host with ephemeral disk is suitable only for limited validation until persistent storage or a managed database migration is proven.
+- SQLite is local-file storage. A host with ephemeral disk is suitable only for limited validation until persistent storage or a managed database migration is proven. Neon is not connected by this repository unless a PostgreSQL adapter and a verified database connection are implemented; creating a Neon project alone is not integration.
 
 ## Alternative deployment to Hugging Face Spaces
 
