@@ -36,13 +36,13 @@ VCMC-VP is a two-part application: a static public frontend and a separate Pytho
 - Without valid `RESEND_API_KEY` and `RESEND_FROM_EMAIL` values from an approved sender identity, registration uses the restricted public-unverified mode: users can authenticate only in the `PUBLIC` context; this is not email verification, Partner approval, authority, or Case access.
 - Health endpoint: `/health`
 - Readiness endpoint: `/api/system/readiness`
-- Use `PORT` supplied by the host. The Docker image defaults to 7860 for Hugging Face Spaces; Render injects its own `PORT`.
+- Use `PORT` supplied by the host. The Docker image defaults to 7860 for Hugging Face Spaces; other hosts may inject their own `PORT`.
 - CORS is restricted to explicit HTTPS origins. Do not use wildcard origins.
 - SQLite is local-file storage. A host with ephemeral disk is suitable only for limited validation until persistent storage or a managed database migration is proven. Neon is not connected by this repository unless a PostgreSQL adapter and a verified database connection are implemented; creating a Neon project alone is not integration.
 
 ## Alternative deployment to Hugging Face Spaces
 
-Workflow: `.github/workflows/publish-to-hf.yml` (manual dispatch only; does not publish automatically on every push).
+Workflow: `.github/workflows/publish-to-hf.yml` (push to `main` and manual dispatch).
 
 It uses Hugging Face Trusted Publishers (GitHub Actions OIDC) so no long-lived Hugging Face token needs to be stored in GitHub. Before dispatching, configure the matching Trusted Publisher on the Space settings:
 - Provider: GitHub Actions
@@ -58,6 +58,7 @@ Run:
 ```sh
 python test_roadmap_3_10.py
 python test_frontend_contract.py
+python test_public_bootstrap.py
 ```
 
 Repository checks do not prove that the deployed backend, account registration, email verification, database persistence, partner access, PJP execution, or a real pilot is live and verified.
