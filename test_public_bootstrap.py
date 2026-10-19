@@ -19,6 +19,11 @@ with tempfile.TemporaryDirectory() as td:
     os.environ["VCMC_REAL_MONEY_ENABLED"] = "false"
     os.environ.pop("RESEND_API_KEY", None)
     os.environ.pop("RESEND_FROM_EMAIL", None)
+    os.environ.pop("VCMC_SMTP_HOST", None)
+    os.environ.pop("VCMC_SMTP_PORT", None)
+    os.environ.pop("VCMC_SMTP_USER", None)
+    os.environ.pop("VCMC_SMTP_PASSWORD", None)
+    os.environ.pop("VCMC_SMTP_FROM_EMAIL", None)
 
     import server
 
@@ -59,7 +64,16 @@ with tempfile.TemporaryDirectory() as td:
             "context": "CANDIDATE",
             "accept_terms": True,
         })
-        assert status == 201 and registered["status"] == "public_unverified"
+        assert status == 503 and registered["error"] == "email_provider_not_configured"
+        db = server.conn()
+        assert db.execute("SELECT COUNT(*) FROM users WHERE email='public-bootstrap@example.invalid'").fetchone()[0] == 0
+        # Missing email delivery must fail closed: never create an unverified account.
+        db.execute(
+            "INSERT INTO users(email,login_id,password_hash,role,status,name,email_verified) VALUES(?,?,?,?,?,?,1)",
+            ("public-bootstrap@example.invalid", "CAND-TEST", server.hash_password("test-password-123"), "PUBLIC", "PUBLIC", "Public Bootstrap Test"),
+        )
+        db.commit()
+        db.close()
 
         status, logged_in = request("/api/login", {
             "email": "public-bootstrap@example.invalid",
