@@ -342,7 +342,7 @@ class H(BaseHTTPRequestHandler):
    if row:
     ok,legacy_upgrade=verify_password(password,row['password_hash'])
     if ok: u=row
-   if not u and email==ADMIN_EMAIL and password==ADMIN_PASSWORD:
+   if not u and ADMIN_EMAIL and ADMIN_PASSWORD and email==ADMIN_EMAIL and password==ADMIN_PASSWORD:
     row=c.execute('SELECT * FROM users WHERE email=?',(email,)).fetchone()
     if row:
      u=row
