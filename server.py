@@ -125,6 +125,26 @@ def send_verification_email(email,token,base_url=None):
   code=getattr(e,'smtp_code','')
   print('VCMC_EMAIL provider=smtp event=error recipient_tag='+recipient_tag+' host='+SMTP_HOST+' port='+str(SMTP_PORT)+' stage='+stage+' error_type='+type(e).__name__+' smtp_code='+str(code)+' detail='+repr(detail),flush=True)
   return False,'email_delivery_unavailable'
+def create_public_unverified_account(email,password,name,context):
+ # Safe fallback when outbound email delivery is unavailable: create only a
+ # PUBLIC, unverified identity. Login remains limited to PUBLIC context; this
+ # does not grant Candidate/Partner status, authority, or privileged access.
+ c=conn()
+ existing=c.execute('SELECT id FROM users WHERE email=?',(email,)).fetchone()
+ if existing:
+  c.close()
+  return False
+ login_id='CAND-'+secrets.token_hex(5).upper()
+ try:
+  c.execute('INSERT INTO users(email,login_id,password_hash,role,status,name,email_verified) VALUES(?,?,?,?,?,?,0)',(email,login_id,hash_password(password),'PUBLIC','PUBLIC',name))
+  c.commit()
+ except sqlite3.IntegrityError:
+  c.rollback()
+  c.close()
+  return False
+ c.close()
+ audit('PUBLIC','REGISTRATION_EMAIL_UNAVAILABLE',hashlib.sha256(email.encode()).hexdigest()[:16],'unverified public account; context='+context)
+ return True
 def verify_password(password,stored):
  if not stored: return False,False
  if stored.startswith('pbkdf2$'):
@@ -462,10 +482,12 @@ class H(BaseHTTPRequestHandler):
    if len(password)<8 or len(password)>256: return self.sendj(400,{'error':'password_min_8_chars'})
    if data.get('accept_terms') not in ('on',True,'true','1'): return self.sendj(400,{'error':'terms_acknowledgement_required','message':'Konfirmasi syarat pendaftaran terlebih dahulu.'})
    if not email_sender_configured():
-    c=conn()
-    if c.execute('SELECT 1 FROM users WHERE email=?',(email,)).fetchone():
-     c.close(); return self.sendj(503,{'error':'email_provider_not_configured','message':'Kanal email verifikasi belum dikonfigurasi. Tidak ada email terkirim; akun lama tidak diubah.'})
-    c.close(); return self.sendj(503,{'error':'email_provider_not_configured','message':'Kanal email verifikasi belum dikonfigurasi. Tidak ada akun baru yang dibuat.'})
+    c=conn(); existing=c.execute('SELECT id FROM users WHERE email=?',(email,)).fetchone(); c.close()
+    if existing:
+     return self.sendj(409,{'error':'account_exists','message':'Email ini sudah memiliki akun. Akun lama tidak diubah; silakan masuk dalam konteks Public.'})
+    if create_public_unverified_account(email,password,name,context):
+     return self.sendj(201,{'ok':True,'status':'public_unverified','email_verified':False,'role':'PUBLIC','message':'Akun publik dibuat, tetapi email belum terverifikasi karena kanal email belum tersedia. Akses dibatasi ke konteks Public; pemulihan password melalui email belum tersedia.'})
+    return self.sendj(409,{'error':'account_exists','message':'Email ini sudah memiliki akun. Akun lama tidak diubah; silakan masuk dalam konteks Public.'})
    c=conn()
    existing=c.execute('SELECT id,email_verified FROM users WHERE email=?',(email,)).fetchone()
    if existing and existing['email_verified']:
@@ -476,7 +498,9 @@ class H(BaseHTTPRequestHandler):
    sent,detail=send_verification_email(email,token_value,self.base_url())
    if not sent:
     c=conn(); c.execute('DELETE FROM pending_registrations WHERE email=? AND token_hash=?',(email,token_hash)); c.commit(); c.close()
-    return self.sendj(503,{'error':'verification_email_failed','message':'Email verifikasi belum dapat dikirim. Tidak ada akun yang dibuat. Periksa konfigurasi email VCMC.'})
+    if create_public_unverified_account(email,password,name,context):
+     return self.sendj(201,{'ok':True,'status':'public_unverified','email_verified':False,'role':'PUBLIC','message':'Akun publik dibuat, tetapi email verifikasi gagal dikirim. Akses dibatasi ke konteks Public; pemulihan password melalui email belum tersedia.'})
+    return self.sendj(409,{'error':'account_exists','message':'Email ini sudah memiliki akun. Akun lama tidak diubah; silakan masuk dalam konteks Public.'})
    audit('PUBLIC','REGISTRATION_VERIFICATION_SENT',hashlib.sha256(email.encode()).hexdigest()[:16],'verification email requested')
    return self.sendj(202,{'ok':True,'status':'verification_pending','message':'Instruksi verifikasi telah dikirim jika alamat dapat digunakan. Buka email dan tekan tombol Verifikasi email. Link berlaku 30 menit.'})
   if p=='/api/public/verify-email':
