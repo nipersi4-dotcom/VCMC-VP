@@ -91,22 +91,39 @@ def send_verification_email(email,token,base_url=None):
   except Exception as e:
    print('VCMC_EMAIL provider=resend event=error recipient_tag='+recipient_tag+' error_type='+type(e).__name__,flush=True)
    return False,'email_delivery_unavailable'
+ stage='message_prepare'
  try:
   msg=EmailMessage(); msg['Subject']=subject; msg['From']=SMTP_FROM_EMAIL or SMTP_USER; msg['To']=email
   msg.set_content('Verifikasi email VCMC-VP. Buka tautan ini dalam 30 menit: '+link+'\\n\\nPendaftaran tidak otomatis memberi status Partner, kewenangan, atau akses ke semua Case.')
   msg.add_alternative(html,subtype='html')
   context=ssl.create_default_context()
   if SMTP_PORT==465:
+   stage='connect_tls465'
    with smtplib.SMTP_SSL(SMTP_HOST,SMTP_PORT,context=context,timeout=15) as server:
-    server.login(SMTP_USER,SMTP_PASSWORD); server.send_message(msg)
+    stage='authenticate'
+    server.login(SMTP_USER,SMTP_PASSWORD)
+    stage='send_message'
+    server.send_message(msg)
   else:
+   stage='connect'
    with smtplib.SMTP(SMTP_HOST,SMTP_PORT,timeout=15) as server:
-    server.ehlo(); server.starttls(context=context); server.ehlo()
-    server.login(SMTP_USER,SMTP_PASSWORD); server.send_message(msg)
+    stage='ehlo_pre_tls'
+    server.ehlo()
+    stage='starttls'
+    server.starttls(context=context)
+    stage='ehlo_post_tls'
+    server.ehlo()
+    stage='authenticate'
+    server.login(SMTP_USER,SMTP_PASSWORD)
+    stage='send_message'
+    server.send_message(msg)
   print('VCMC_EMAIL provider=smtp event=accepted recipient_tag='+recipient_tag+' host='+SMTP_HOST+' port='+str(SMTP_PORT),flush=True)
   return True,'email_sent'
  except Exception as e:
-  print('VCMC_EMAIL provider=smtp event=error recipient_tag='+recipient_tag+' host='+SMTP_HOST+' port='+str(SMTP_PORT)+' error_type='+type(e).__name__,flush=True)
+  # Diagnostic only: never log credentials, message body, tokens, or recipient address.
+  detail=' '.join(str(e).replace('\\r',' ').replace('\\n',' ').split())[:180]
+  code=getattr(e,'smtp_code','')
+  print('VCMC_EMAIL provider=smtp event=error recipient_tag='+recipient_tag+' host='+SMTP_HOST+' port='+str(SMTP_PORT)+' stage='+stage+' error_type='+type(e).__name__+' smtp_code='+str(code)+' detail='+repr(detail),flush=True)
   return False,'email_delivery_unavailable'
 def verify_password(password,stored):
  if not stored: return False,False
