@@ -55,6 +55,7 @@ with tempfile.TemporaryDirectory() as td:
     try:
         status, health = request("/health")
         assert status == 200 and health["status"] == "ok"
+        assert health["build_marker"] == "vcmc-vp-live-verification-2026-10-23-a"
         assert health["admin_configured"] is False
 
         status, registered = request("/api/public/register", {
