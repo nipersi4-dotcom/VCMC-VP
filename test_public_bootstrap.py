@@ -64,16 +64,20 @@ with tempfile.TemporaryDirectory() as td:
             "context": "CANDIDATE",
             "accept_terms": True,
         })
-        assert status == 503 and registered["error"] == "email_provider_not_configured"
+        assert status == 201
+        assert registered["status"] == "public_unverified"
+        assert registered["email_verified"] is False
+        assert registered["role"] == "PUBLIC"
         db = server.conn()
-        assert db.execute("SELECT COUNT(*) FROM users WHERE email='public-bootstrap@example.invalid'").fetchone()[0] == 0
-        # Missing email delivery must fail closed: never create an unverified account.
-        db.execute(
-            "INSERT INTO users(email,login_id,password_hash,role,status,name,email_verified) VALUES(?,?,?,?,?,?,1)",
-            ("public-bootstrap@example.invalid", "CAND-TEST", server.hash_password("test-password-123"), "PUBLIC", "PUBLIC", "Public Bootstrap Test"),
-        )
-        db.commit()
+        row = db.execute(
+            "SELECT role,status,email_verified FROM users WHERE email=?",
+            ("public-bootstrap@example.invalid",),
+        ).fetchone()
+        assert row is not None
+        assert row["role"] == "PUBLIC" and row["status"] == "PUBLIC"
+        assert row["email_verified"] == 0
         db.close()
+        # Email delivery failure may create only a restricted, unverified PUBLIC identity.
 
         status, logged_in = request("/api/login", {
             "email": "public-bootstrap@example.invalid",
