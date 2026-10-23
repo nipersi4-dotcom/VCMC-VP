@@ -21,7 +21,8 @@ checks = {
     "verification link handler": "async function verifyEmailFromLink()" in source,
     "verification token read from URL": "params.get('verify')" in source,
     "verification handler called on link open": "if(new URLSearchParams(location.search).has('verify'))verifyEmailFromLink()" in source,
-    "email delivery failure does not create active account": "Email verifikasi belum dapat dikirim. Tidak ada akun yang dibuat." in source,
+    "email delivery failure has a restricted public fallback": "create_public_unverified_account(email,password,name,context)" in source and "'status':'public_unverified'" in source,
+    "unverified fallback identity remains PUBLIC-only": "'email_verified':False,'role':'PUBLIC'" in source and "context!='PUBLIC'" in source,
 }
 
 failed = [name for name, passed in checks.items() if not passed]
