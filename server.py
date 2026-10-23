@@ -9,7 +9,7 @@ ADMIN_EMAIL=os.getenv('VCMC_ADMIN_EMAIL',''); ADMIN_PASSWORD=os.getenv('VCMC_ADM
 RESEND_API_KEY=os.getenv('RESEND_API_KEY','').strip(); RESEND_FROM_EMAIL=os.getenv('RESEND_FROM_EMAIL','').strip()
 SMTP_HOST=os.getenv('VCMC_SMTP_HOST','').strip(); SMTP_PORT=int(os.getenv('VCMC_SMTP_PORT','587')); SMTP_USER=os.getenv('VCMC_SMTP_USER','').strip(); SMTP_PASSWORD=os.getenv('VCMC_SMTP_PASSWORD',''); SMTP_FROM_EMAIL=os.getenv('VCMC_SMTP_FROM_EMAIL','').strip()
 HF_OAUTH_STATES={}
-REAL_MONEY=os.getenv('VCMC_REAL_MONEY_ENABLED','false').lower()=='true'; BACKUP_DIR=os.getenv('VCMC_BACKUP_DIR','backups')
+REAL_MONEY=os.getenv('VCMC_REAL_MONEY_ENABLED','false').lower()=='true'; BUILD_MARKER='vcmc-vp-live-verification-2026-10-23-a'; BACKUP_DIR=os.getenv('VCMC_BACKUP_DIR','backups')
 RULE_ID='VCMC-ALLOC-001'; RULE_VERSION='1.0.0'; FORMULA_VERSION='1.0.0'
 def now(): return datetime.now(timezone.utc).isoformat()
 def conn():
@@ -280,7 +280,7 @@ class H(BaseHTTPRequestHandler):
 
 <script src="/app.js" defer></script></body></html>'''
    b=html.encode(); self.send_response(200); self.send_header('Content-Type','text/html; charset=utf-8'); self.send_header('Content-Length',str(len(b))); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(b); return
-  if p=='/health': return self.sendj(200,{'status':'ok','machine':'VCMC-VP','real_money_enabled':REAL_MONEY,'admin_configured':bool(ADMIN_EMAIL and ADMIN_PASSWORD),'registration_mode':'email_verification' if email_sender_configured() else 'email_provider_not_configured'})
+  if p=='/health': return self.sendj(200,{'status':'ok','machine':'VCMC-VP','build_marker':BUILD_MARKER,'real_money_enabled':REAL_MONEY,'admin_configured':bool(ADMIN_EMAIL and ADMIN_PASSWORD),'registration_mode':'email_verification' if email_sender_configured() else 'email_provider_not_configured'})
   if p=='/api/system/readiness':
    c=conn(); provider=bool(c.execute('SELECT 1 FROM providers WHERE execution_verified=1').fetchone()); c.close(); return self.sendj(200,{'ready':(not REAL_MONEY and bool(ADMIN_EMAIL and ADMIN_PASSWORD)),'admin_configured':bool(ADMIN_EMAIL and ADMIN_PASSWORD),'database':True,'public':True,'real_money':REAL_MONEY,'real_money_enabled':REAL_MONEY,'real_pjp_execution_verified':provider,'registration_mode':'email_verification' if email_sender_configured() else 'email_provider_not_configured','rule_id':RULE_ID,'rule_version':RULE_VERSION,'formula_version':FORMULA_VERSION})
   if p=='/api/rule': return self.sendj(200,{'rule_id':RULE_ID,'version':RULE_VERSION,'formula_version':FORMULA_VERSION})
